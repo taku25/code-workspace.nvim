@@ -26,19 +26,49 @@ local function run_fd(folders, on_results)
         vim.schedule(function() on_results({}) end)
         return
     end
+
+    -- Resolve fd executable path (Neovim's PATH may differ from shell PATH)
+    local fd_exe = vim.fn.exepath("fd")
+    if fd_exe == "" then
+        -- Try common WinGet location
+        local winget = vim.fn.expand("$LOCALAPPDATA") .. "\\Microsoft\\WinGet\\Links\\fd.exe"
+        if vim.fn.filereadable(winget) == 1 then
+            fd_exe = winget
+        else
+            vim.schedule(function()
+                vim.notify("[CW] fd not found in PATH. Install fd-find.", vim.log.levels.ERROR)
+                on_results({})
+            end)
+            return
+        end
+    end
+
     local all = {}
     local pending = #folders
     for _, dir in ipairs(folders) do
+        local stderr_lines = {}
         vim.fn.jobstart(
-            { "fd", "--type", "f", "--hidden", "--follow", "--exclude", ".git", "--", dir },
+            { fd_exe, "--type", "f", "--hidden", "--follow", "--exclude", ".git", "--", dir },
             {
                 stdout_buffered = true,
+                stderr_buffered = true,
                 on_stdout = function(_, data)
                     for _, line in ipairs(data or {}) do
                         if line ~= "" then table.insert(all, line) end
                     end
                 end,
-                on_exit = function()
+                on_stderr = function(_, data)
+                    for _, line in ipairs(data or {}) do
+                        if line ~= "" then table.insert(stderr_lines, line) end
+                    end
+                end,
+                on_exit = function(_, code)
+                    if code ~= 0 and #stderr_lines > 0 then
+                        vim.schedule(function()
+                            vim.notify("[CW] fd error: " .. table.concat(stderr_lines, "\n"),
+                                vim.log.levels.WARN)
+                        end)
+                    end
                     pending = pending - 1
                     if pending == 0 then
                         vim.schedule(function() on_results(all) end)
