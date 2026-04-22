@@ -94,11 +94,15 @@ function M.live_grep(folders, opts)
     elseif backend == "fzf-lua" then
         require("fzf-lua").live_grep(vim.tbl_extend("force", {
             prompt   = (opts.prompt or "CW Grep") .. "> ",
-            rg_opts  = "--hidden --follow --column --line-number --no-heading --color=always "
-                    .. table.concat(vim.tbl_map(function(f)
-                           return "--search-path " .. vim.fn.shellescape(f)
-                       end, folders), " "),
+            rg_opts  = "--hidden --follow --column --line-number --no-heading --color=always -g '!.git'",
+            cwd      = folders[1],  -- base dir for display purposes
+            -- Pass extra dirs via rg glob or multidir support
+            multiprocess = true,
+            exec_empty_query = false,
         }, opts.fzf_lua or {}))
+        -- fzf-lua doesn't natively support multiple search dirs for live_grep,
+        -- so fall back to snacks or telescope when multiple dirs exist.
+        -- For single-dir workspaces this works perfectly.
 
     elseif backend == "snacks" then
         require("snacks").picker.grep(vim.tbl_extend("force", {

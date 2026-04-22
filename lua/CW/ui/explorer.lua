@@ -357,4 +357,10 @@ function M.get_favorites(on_result)
     end
 end
 
+--- Return the currently loaded workspace (if the explorer has been opened).
+---@return table|nil
+function M.current_ws()
+    return state.ws
+end
+
 return M
