@@ -205,63 +205,70 @@ function M.open(opts)
         return
     end
 
-    -- Find workspace
-    local ws = opts.ws or workspace.find()
-    if not ws then
-        vim.notify("[CW] No .code-workspace file found", vim.log.levels.WARN)
-        return
+    -- Find workspace (async when multiple .code-workspace files exist)
+    local function do_open(ws)
+        if not ws then
+            vim.notify("[CW] No .code-workspace file found", vim.log.levels.WARN)
+            return
+        end
+        state.ws = ws
+
+        local conf = get_conf()
+
+        -- Create split
+        state.split = Split({
+            relative  = "editor",
+            position  = conf.window.position,
+            size      = conf.window.width,
+            win_options = {
+                number         = false,
+                relativenumber = false,
+                wrap           = false,
+                signcolumn     = "no",
+                foldcolumn     = "0",
+                statuscolumn   = "",
+            },
+            buf_options = {
+                buftype    = "nofile",
+                bufhidden  = "hide",
+                filetype   = "cw-explorer",
+                modifiable = false,
+                swapfile   = false,
+            },
+        })
+        state.split:mount()
+        state.buf = state.split.bufnr
+
+        -- Build views
+        state.views["tree"]      = ViewTree.new(state.buf, ws)
+        state.views["favorites"] = ViewFav.new(state.buf, ws)
+
+        setup_keymaps(state.buf)
+
+        -- Clean up state when window is closed
+        vim.api.nvim_create_autocmd("WinClosed", {
+            buffer  = state.buf,
+            once    = true,
+            callback = function()
+                if state.views["tree"] then
+                    state.views["tree"].save_state()
+                end
+                state.split = nil
+                state.buf   = nil
+                state.views = {}
+            end,
+        })
+
+        -- Initial render
+        state.current_tab = opts.tab or "tree"
+        render_current_tab()
+    end  -- end do_open
+
+    if opts.ws then
+        do_open(opts.ws)
+    else
+        workspace.find(nil, do_open)
     end
-    state.ws = ws
-
-    local conf = get_conf()
-
-    -- Create split
-    state.split = Split({
-        relative  = "editor",
-        position  = conf.window.position,
-        size      = conf.window.width,
-        win_options = {
-            number         = false,
-            relativenumber = false,
-            wrap           = false,
-            signcolumn     = "no",
-            foldcolumn     = "0",
-            statuscolumn   = "",
-        },
-        buf_options = {
-            buftype    = "nofile",
-            bufhidden  = "hide",
-            filetype   = "cw-explorer",
-            modifiable = false,
-            swapfile   = false,
-        },
-    })
-    state.split:mount()
-    state.buf = state.split.bufnr
-
-    -- Build views
-    state.views["tree"]      = ViewTree.new(state.buf, ws)
-    state.views["favorites"] = ViewFav.new(state.buf, ws)
-
-    setup_keymaps(state.buf)
-
-    -- Clean up state when window is closed
-    vim.api.nvim_create_autocmd("WinClosed", {
-        buffer  = state.buf,
-        once    = true,
-        callback = function()
-            if state.views["tree"] then
-                state.views["tree"].save_state()
-            end
-            state.split = nil
-            state.buf   = nil
-            state.views = {}
-        end,
-    })
-
-    -- Initial render
-    state.current_tab = opts.tab or "tree"
-    render_current_tab()
 end
 
 function M.close()
@@ -316,30 +323,38 @@ end
 --- Toggle favorite for a given path (callable from outside the panel).
 ---@param file_path string
 function M.toggle_favorite(file_path)
-    -- Ensure favorites view exists
-    if not state.ws then
-        state.ws = workspace.find()
-        if not state.ws then return end
+    local function do_toggle(ws)
+        if not ws then return end
+        state.ws = ws
+        if not state.views["favorites"] then
+            state.views["favorites"] = ViewFav.new(-1, ws)
+        end
+        local added = state.views["favorites"].toggle(file_path)
+        vim.notify(added and "Added to Favorites" or "Removed from Favorites", vim.log.levels.INFO)
     end
-    if not state.views["favorites"] then
-        -- Load a lightweight view without a buf (buf = -1 = headless)
-        state.views["favorites"] = ViewFav.new(-1, state.ws)
+    if state.ws then
+        do_toggle(state.ws)
+    else
+        workspace.find(nil, do_toggle)
     end
-    local added = state.views["favorites"].toggle(file_path)
-    vim.notify(added and "Added to Favorites" or "Removed from Favorites", vim.log.levels.INFO)
 end
 
 --- Return all favorite paths (callable from outside the panel).
----@return string[]
-function M.get_favorites()
-    if not state.ws then
-        state.ws = workspace.find()
-        if not state.ws then return {} end
+---@param on_result fun(paths: string[])
+function M.get_favorites(on_result)
+    local function do_get(ws)
+        if not ws then on_result({}) return end
+        state.ws = ws
+        if not state.views["favorites"] then
+            state.views["favorites"] = ViewFav.new(-1, ws)
+        end
+        on_result(state.views["favorites"].get_paths())
     end
-    if not state.views["favorites"] then
-        state.views["favorites"] = ViewFav.new(-1, state.ws)
+    if state.ws then
+        do_get(state.ws)
+    else
+        workspace.find(nil, do_get)
     end
-    return state.views["favorites"].get_paths()
 end
 
 return M

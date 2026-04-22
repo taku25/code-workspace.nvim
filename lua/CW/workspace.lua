@@ -5,11 +5,12 @@ local path = require("CW.path")
 
 local M = {}
 
---- Search upward from start_path for a *.code-workspace file.
+--- Search upward from start_path and collect ALL *.code-workspace files found
+--- in the first directory that contains at least one.
 ---@param start_path string
 ---@param max_depth? integer  Default: 10
----@return string|nil  Full path to .code-workspace file
-local function find_workspace_file(start_path, max_depth)
+---@return string[]  Full paths to all .code-workspace files found
+local function find_workspace_files(start_path, max_depth)
     max_depth = max_depth or 10
     local dir = vim.fn.fnamemodify(start_path, ":p")
     if vim.fn.isdirectory(dir) == 0 then
@@ -17,21 +18,26 @@ local function find_workspace_file(start_path, max_depth)
     end
 
     for _ = 1, max_depth do
+        local found = {}
         local handle = vim.loop.fs_scandir(dir)
         if handle then
             while true do
                 local name, ftype = vim.loop.fs_scandir_next(handle)
                 if not name then break end
                 if (ftype == "file" or ftype == nil) and name:match("%.code%-workspace$") then
-                    return path.join(dir, name)
+                    table.insert(found, path.join(dir, name))
                 end
             end
+        end
+        if #found > 0 then
+            table.sort(found)
+            return found
         end
         local parent = vim.fn.fnamemodify(dir, ":h")
         if parent == dir then break end
         dir = parent
     end
-    return nil
+    return {}
 end
 
 --- Resolve a folder path from .code-workspace.
@@ -121,9 +127,10 @@ function M.parse(ws_path)
 end
 
 --- Find and parse the nearest .code-workspace from the given path.
+--- If multiple files are found in the same directory, shows a picker.
 ---@param start_path? string  Defaults to current buffer path, then cwd
----@return table|nil
-function M.find(start_path)
+---@param on_result fun(ws: table|nil)  Callback (async when picker is shown)
+function M.find(start_path, on_result)
     if not start_path or start_path == "" then
         start_path = vim.api.nvim_buf_get_name(0)
         if start_path == "" then
@@ -131,9 +138,37 @@ function M.find(start_path)
         end
     end
 
-    local ws_path = find_workspace_file(start_path)
-    if not ws_path then return nil end
-    return M.parse(ws_path)
+    local files = find_workspace_files(start_path)
+
+    if #files == 0 then
+        if on_result then on_result(nil) end
+        return nil
+    end
+
+    if #files == 1 then
+        local ws = M.parse(files[1])
+        if on_result then on_result(ws) end
+        return ws
+    end
+
+    -- Multiple workspaces → show picker
+    local labels = vim.tbl_map(function(f)
+        return vim.fn.fnamemodify(f, ":t")  -- just the filename
+    end, files)
+
+    if on_result then
+        vim.ui.select(labels, { prompt = "Select workspace" }, function(_, idx)
+            if idx then
+                on_result(M.parse(files[idx]))
+            else
+                on_result(nil)
+            end
+        end)
+        return nil  -- async path
+    else
+        -- Synchronous fallback: return first (for internal use)
+        return M.parse(files[1])
+    end
 end
 
 --- Get all folder paths from a workspace as a flat list.

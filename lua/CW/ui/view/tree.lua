@@ -154,7 +154,8 @@ function M.new(buf, ws)
                 if n:is_expanded() then
                     table.insert(expanded, n.id)
                 end
-                walk(n:get_child_ids and n:get_child_ids() or {})
+                local child_ids = type(n.get_child_ids) == "function" and n:get_child_ids() or {}
+                walk(child_ids)
             end
         end
         walk(tree:get_nodes())
