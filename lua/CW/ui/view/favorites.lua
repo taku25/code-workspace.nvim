@@ -30,35 +30,17 @@ end
 ---@param favorites table[]
 ---@return NuiTree.Node[]
 local function build_nodes(favorites)
-    -- Collect folder definitions
-    local folder_nodes = {}   -- name -> Tree.Node
+    -- Collect defined folder names
+    local folder_names = {}   -- name -> true
+    folder_names["Default"] = true
 
-    -- First pass: create folder nodes
     for _, item in ipairs(favorites) do
         if item.is_folder then
-            local node = Tree.Node({
-                text  = item.name,
-                id    = "fav_folder:" .. item.name,
-                type  = "directory",
-                extra = { cw_type = "fav_folder", folder_name = item.name },
-                _has_children = true,
-            })
-            folder_nodes[item.name] = node
+            folder_names[item.name] = true
         end
     end
 
-    -- Ensure "Default" folder always exists
-    if not folder_nodes["Default"] then
-        folder_nodes["Default"] = Tree.Node({
-            text  = "Default",
-            id    = "fav_folder:Default",
-            type  = "directory",
-            extra = { cw_type = "fav_folder", folder_name = "Default" },
-            _has_children = false,
-        })
-    end
-
-    -- Second pass: attach file items to folder nodes
+    -- Second pass: build file item nodes per folder
     local folder_children = {}  -- folder_name -> list of nodes
     for _, item in ipairs(favorites) do
         if not item.is_folder then
@@ -76,29 +58,28 @@ local function build_nodes(favorites)
         end
     end
 
-    -- Attach children to folder nodes
-    for fname, children in pairs(folder_children) do
-        local fnode = folder_nodes[fname]
-        if fnode then
-            fnode:set_children(children)
-            fnode._has_children = (#children > 0)
-        end
-    end
-
-    -- Build top-level list (Default first, then alphabetical)
+    -- Build top-level folder nodes (children passed to constructor)
     local top = {}
-    for fname, fnode in pairs(folder_nodes) do
-        table.insert(top, { name = fname, node = fnode })
+    for fname, _ in pairs(folder_names) do
+        table.insert(top, fname)
     end
     table.sort(top, function(a, b)
-        if a.name == "Default" then return true end
-        if b.name == "Default" then return false end
-        return a.name:lower() < b.name:lower()
+        if a == "Default" then return true end
+        if b == "Default" then return false end
+        return a:lower() < b:lower()
     end)
 
     local result = {}
-    for _, entry in ipairs(top) do
-        table.insert(result, entry.node)
+    for _, fname in ipairs(top) do
+        local children = folder_children[fname] or {}
+        local fnode = Tree.Node({
+            text  = fname,
+            id    = "fav_folder:" .. fname,
+            type  = "directory",
+            extra = { cw_type = "fav_folder", folder_name = fname },
+            _has_children = #children > 0,
+        }, #children > 0 and children or nil)
+        table.insert(result, fnode)
     end
     return result
 end

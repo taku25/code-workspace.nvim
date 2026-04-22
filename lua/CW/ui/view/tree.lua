@@ -127,13 +127,18 @@ function M.new(buf, ws)
 
     --- Expand a node lazily if it hasn't been scanned yet.
     function view.expand_node(node)
-        if not (node._has_children and not node:has_children()) then return end
+        if not node._has_children then return end
+        if node:has_children() then return end  -- already populated
+
         local children = scan_dir(node.path, is_excluded, ignore_dirs)
-        node:set_children(children)
-        -- Restore child expansions
+        -- nui.tree API: set_nodes(children, parent_id) populates the node's children
+        tree:set_nodes(children, node.id)
+
+        -- Restore saved expansion state for newly added children
         for _, child in ipairs(children) do
             if expanded_ids[child.id] then
-                view.tree:get_node(child.id):expand()
+                local child_node = tree:get_node(child.id)
+                if child_node then child_node:expand() end
             end
         end
     end
@@ -148,17 +153,18 @@ function M.new(buf, ws)
     --- Save expanded state to store.
     function view.save_state()
         local expanded = {}
-        -- Walk all nodes and collect expanded ones
-        local function walk(nodes)
-            for _, n in ipairs(nodes or {}) do
-                if n:is_expanded() then
-                    table.insert(expanded, n.id)
+        local function walk(node_ids)
+            for _, id in ipairs(node_ids or {}) do
+                local n = tree:get_node(id)
+                if n then
+                    if n:is_expanded() then
+                        table.insert(expanded, n.id)
+                    end
+                    walk(n:get_child_ids())
                 end
-                local child_ids = type(n.get_child_ids) == "function" and n:get_child_ids() or {}
-                walk(child_ids)
             end
         end
-        walk(tree:get_nodes())
+        walk(tree.nodes.root_ids)
         store.save_ws(ws.safe_name, "tree_state", { expanded = expanded })
     end
 
