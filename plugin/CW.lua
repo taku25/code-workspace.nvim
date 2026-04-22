@@ -19,6 +19,10 @@ local subcommands = {
         desc    = "Toggle current buffer in Favorites",
         handler = function() require("CW.api").favorite_current() end,
     },
+    add_favorites = {
+        desc    = "Add files to Favorites via picker",
+        handler = function() require("CW.api").add_favorites() end,
+    },
     favorites_files = {
         desc    = "Open Favorites in picker",
         handler = function() require("CW.api").favorites_files() end,

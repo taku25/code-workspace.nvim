@@ -18,6 +18,7 @@ function M.files(ws)   require("CW.cmd.work_files").execute(ws or current_ws()) 
 function M.grep(ws)    require("CW.cmd.work_grep").execute(ws or current_ws()) end
 
 function M.favorite_current()   require("CW.cmd.favorite_current").execute() end
+function M.add_favorites()      require("CW.cmd.add_favorites").execute() end
 function M.favorites_files()    require("CW.cmd.favorites_files").execute() end
 
 return M

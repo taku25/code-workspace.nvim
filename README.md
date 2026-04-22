@@ -1,6 +1,6 @@
 # code-workspace.nvim
 
-A Neovim plugin for working with [VS Code `.code-workspace`](https://code.visualstudio.com/docs/editor/workspaces) files.
+A Neovim plugin for working with [VS Code `.code-workspace`](https://code.visualstudio.com/docs/editor/workspaces) files.  
 Multi-root folder tree, favorites, and cross-workspace file/grep search — no VS Code required.
 
 Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fortnite)** projects.
@@ -8,18 +8,18 @@ Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fo
 ## Features
 
 - **Multi-root tree view** — all `folders` in `.code-workspace` shown as roots
-- **Favorites tab** — bookmark files, organize into folders, persist across sessions
-- **`work_files`** — find files across all workspace folders (picker integration)
-- **`work_grep`** — live grep across all workspace folders
-- **`files.exclude` support** — automatically hides files/dirs defined in workspace settings
+- **Favorites** — bookmark files directly in the tree (same panel, no separate tab)
+- **`:CW files`** — find files across all workspace folders
+- **`:CW grep`** — live grep across all workspace folders
+- **`files.exclude` support** — workspace settings patterns applied to tree and file search
 - **UEFN detection** — auto-detects Verse projects (highlights UEFN roots with ⚡)
+- **No external tools required** — file scanning uses `vim.loop` (pure Lua)
 - Picker auto-detection: **telescope → fzf-lua → snacks → vim.ui.select**
 
 ## Requirements
 
 - Neovim 0.9+
 - [nui.nvim](https://github.com/MunifTanjim/nui.nvim) (required)
-- `fd` and `rg` (recommended for `work_files` / `work_grep`)
 - [nvim-web-devicons](https://github.com/nvim-tree/nvim-web-devicons) (optional, for file icons)
 - One of: telescope.nvim / fzf-lua / snacks.nvim (optional, for picker support)
 
@@ -45,10 +45,26 @@ Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fo
 | `:CW toggle` | Toggle the explorer panel |
 | `:CW focus` | Focus the current file in the tree |
 | `:CW refresh` | Refresh the tree |
-| `:CW work_files` | Find files across all workspace folders |
-| `:CW work_grep` | Live grep across all workspace folders |
+| `:CW files` | Find files across all workspace folders |
+| `:CW grep` | Live grep across all workspace folders |
 | `:CW favorite_current` | Toggle current buffer in Favorites |
+| `:CW add_favorites` | Add files to Favorites via picker |
 | `:CW favorites_files` | Open Favorites in picker |
+
+## Explorer Keymaps
+
+Default keymaps inside the explorer buffer:
+
+| Key | Action |
+|---|---|
+| `<CR>` / `o` | Open file / expand directory |
+| `s` | Open in vertical split |
+| `i` | Open in horizontal split |
+| `b` | Toggle current file in Favorites |
+| `f` | Find files (`:CW files`) |
+| `g` | Live grep (`:CW grep`) |
+| `R` | Refresh tree |
+| `q` | Close explorer |
 
 ## Configuration
 
@@ -82,8 +98,6 @@ require("CW").setup({
         open            = { "<CR>", "o" },
         vsplit          = "s",
         split           = "i",
-        tab_next        = "<Tab>",
-        tab_prev        = "<S-Tab>",
         refresh         = "R",
         toggle_favorite = "b",
         find_files      = "f",
@@ -100,10 +114,21 @@ require("CW").setup({
 })
 ```
 
-## Workspace `files.exclude` support
+## Favorites
+
+Favorites are displayed at the top of the explorer tree (★ Favorites node) mixed with the workspace folders — no separate tab.
+
+- **`b`** in the explorer — toggle the file under cursor
+- **`:CW favorite_current`** — toggle the current buffer
+- **`:CW add_favorites`** — open a picker to add files
+- **`:CW favorites_files`** — open Favorites in a picker
+
+Favorites are persisted per workspace under `vim.fn.stdpath("data")/code-workspace/`.
+
+## `files.exclude` Support
 
 If your `.code-workspace` contains a `settings` block with `files.exclude`, those patterns are
-automatically applied to the tree view:
+automatically applied to the tree view and file search:
 
 ```json
 "settings": {
