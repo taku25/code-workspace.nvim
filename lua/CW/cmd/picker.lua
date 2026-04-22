@@ -17,8 +17,8 @@ end
 
 -- ── fd runner ────────────────────────────────────────────────────────────────
 
---- Run `fd --type f` across multiple directories asynchronously.
---- Each directory is a separate jobstart so spaces in paths are safe.
+--- Run `fd --type f` across multiple directories.
+--- Uses vim.fn.systemlist() (synchronous) to avoid jobstart/Windows async issues.
 ---@param folders string[]
 ---@param on_results fun(results: string[])
 local function run_fd(folders, on_results)
@@ -27,56 +27,32 @@ local function run_fd(folders, on_results)
         return
     end
 
-    -- Resolve fd executable path (Neovim's PATH may differ from shell PATH)
     local fd_exe = vim.fn.exepath("fd")
     if fd_exe == "" then
-        -- Try common WinGet location
         local winget = vim.fn.expand("$LOCALAPPDATA") .. "\\Microsoft\\WinGet\\Links\\fd.exe"
         if vim.fn.filereadable(winget) == 1 then
             fd_exe = winget
         else
-            vim.schedule(function()
-                vim.notify("[CW] fd not found in PATH. Install fd-find.", vim.log.levels.ERROR)
-                on_results({})
-            end)
+            vim.notify("[CW] fd not found in PATH. Install fd-find.", vim.log.levels.ERROR)
+            on_results({})
             return
         end
     end
 
     local all = {}
-    local pending = #folders
     for _, dir in ipairs(folders) do
-        local stderr_lines = {}
-        local cmd = { fd_exe, "--type", "f", "--hidden", "--follow", "--exclude", ".git", "--", dir }
-        vim.notify("[CW debug] fd cmd: " .. vim.inspect(cmd), vim.log.levels.INFO)
-        vim.fn.jobstart(cmd, {
-                stdout_buffered = true,
-                stderr_buffered = true,
-                on_stdout = function(_, data)
-                    for _, line in ipairs(data or {}) do
-                        if line ~= "" then table.insert(all, line) end
-                    end
-                end,
-                on_stderr = function(_, data)
-                    for _, line in ipairs(data or {}) do
-                        if line ~= "" then table.insert(stderr_lines, line) end
-                    end
-                end,
-                on_exit = function(_, code)
-                    if code ~= 0 and #stderr_lines > 0 then
-                        vim.schedule(function()
-                            vim.notify("[CW] fd error: " .. table.concat(stderr_lines, "\n"),
-                                vim.log.levels.WARN)
-                        end)
-                    end
-                    pending = pending - 1
-                    if pending == 0 then
-                        vim.schedule(function() on_results(all) end)
-                    end
-                end,
-            }
-        )
+        -- Convert to native path so fd handles it reliably on Windows
+        local native_dir = dir:gsub("/", "\\")
+        local cmd = { fd_exe, "--type", "f", "--hidden", "--follow",
+                      "--exclude", ".git", native_dir }
+        local lines = vim.fn.systemlist(cmd)
+        for _, line in ipairs(lines) do
+            if line ~= "" then table.insert(all, line) end
+        end
     end
+
+    vim.notify("[CW debug] fd total results: " .. #all, vim.log.levels.INFO)
+    on_results(all)
 end
 
 -- ── File search ──────────────────────────────────────────────────────────────
