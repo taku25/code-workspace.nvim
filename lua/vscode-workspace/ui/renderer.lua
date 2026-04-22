@@ -7,7 +7,7 @@ local has_devicons, devicons = pcall(require, "nvim-web-devicons")
 local M = {}
 
 local function get_conf()
-    return require("code-workspace.config").get()
+    return require("vscode-workspace.config").get()
 end
 
 --- Render a tree node into a nui.Line.

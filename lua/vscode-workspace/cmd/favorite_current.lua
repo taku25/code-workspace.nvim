@@ -8,7 +8,7 @@ function M.execute()
         vim.notify("[CW] No file in current buffer", vim.log.levels.WARN)
         return
     end
-    require("code-workspace.ui.explorer").toggle_favorite(file_path)
+    require("vscode-workspace.ui.explorer").toggle_favorite(file_path)
 end
 
 return M

@@ -5,9 +5,9 @@
 --     { is_folder=true, name, parent, added_at } -- folder grouping ]
 
 local Tree     = require("nui.tree")
-local renderer = require("code-workspace.ui.renderer")
-local store    = require("code-workspace.store")
-local path_mod = require("code-workspace.path")
+local renderer = require("vscode-workspace.ui.renderer")
+local store    = require("vscode-workspace.store")
+local path_mod = require("vscode-workspace.path")
 
 local M = {}
 M.ROOT_TYPE = "fav_root"
