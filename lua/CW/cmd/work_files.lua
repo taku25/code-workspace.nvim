@@ -11,6 +11,7 @@ function M.execute(ws)
     if ws then
         local conf    = require("CW.config").get()
         local folders = workspace.get_folder_paths(ws)
+        vim.notify("[CW debug] folders: " .. vim.inspect(folders), vim.log.levels.INFO)
         if #folders == 0 then
             vim.notify("[CW] No accessible folders in workspace", vim.log.levels.WARN)
             return

@@ -47,9 +47,9 @@ local function run_fd(folders, on_results)
     local pending = #folders
     for _, dir in ipairs(folders) do
         local stderr_lines = {}
-        vim.fn.jobstart(
-            { fd_exe, "--type", "f", "--hidden", "--follow", "--exclude", ".git", "--", dir },
-            {
+        local cmd = { fd_exe, "--type", "f", "--hidden", "--follow", "--exclude", ".git", "--", dir }
+        vim.notify("[CW debug] fd cmd: " .. vim.inspect(cmd), vim.log.levels.INFO)
+        vim.fn.jobstart(cmd, {
                 stdout_buffered = true,
                 stderr_buffered = true,
                 on_stdout = function(_, data)
