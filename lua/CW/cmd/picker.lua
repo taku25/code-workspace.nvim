@@ -17,6 +17,16 @@ local function get_backend()
     return "native"
 end
 
+--- Convert paths to OS-native format for external tools.
+--- On Windows, telescope/fd/rg work more reliably with backslash absolute paths.
+local function to_native(paths)
+    local is_win = vim.fn.has("win32") == 1
+    if not is_win then return paths end
+    return vim.tbl_map(function(p)
+        return vim.fn.fnamemodify(p, ":p"):gsub("/", "\\"):gsub("\\$", "")
+    end, paths)
+end
+
 -- ── File search ──────────────────────────────────────────────────────────────
 
 --- Open a file picker across multiple root folders.
@@ -30,22 +40,21 @@ function M.find_files(folders, opts)
     end
 
     local backend = get_backend()
+    local native_folders = to_native(folders)
 
     if backend == "telescope" then
         require("telescope.builtin").find_files(vim.tbl_extend("force", {
-            search_dirs = folders,
+            search_dirs = native_folders,
             prompt_title = opts.prompt or "CW Files",
         }, opts.telescope or {}))
 
     elseif backend == "fzf-lua" then
         require("fzf-lua").files(vim.tbl_extend("force", {
             prompt  = (opts.prompt or "CW Files") .. "> ",
-            -- fzf-lua accepts `cwd` (single dir) or rootdir list via cmd
-            -- Pass roots via FZF_DEFAULT_COMMAND with rg / fd
             cmd     = "fd --type f --hidden --follow --exclude .git . " ..
                       table.concat(vim.tbl_map(function(f)
                           return vim.fn.shellescape(f)
-                      end, folders), " "),
+                      end, native_folders), " "),
         }, opts.fzf_lua or {}))
 
     elseif backend == "snacks" then
@@ -84,10 +93,11 @@ function M.live_grep(folders, opts)
     end
 
     local backend = get_backend()
+    local native_folders = to_native(folders)
 
     if backend == "telescope" then
         require("telescope.builtin").live_grep(vim.tbl_extend("force", {
-            search_dirs  = folders,
+            search_dirs  = native_folders,
             prompt_title = opts.prompt or "CW Grep",
         }, opts.telescope or {}))
 
@@ -95,14 +105,8 @@ function M.live_grep(folders, opts)
         require("fzf-lua").live_grep(vim.tbl_extend("force", {
             prompt   = (opts.prompt or "CW Grep") .. "> ",
             rg_opts  = "--hidden --follow --column --line-number --no-heading --color=always -g '!.git'",
-            cwd      = folders[1],  -- base dir for display purposes
-            -- Pass extra dirs via rg glob or multidir support
-            multiprocess = true,
-            exec_empty_query = false,
+            cwd      = native_folders[1],
         }, opts.fzf_lua or {}))
-        -- fzf-lua doesn't natively support multiple search dirs for live_grep,
-        -- so fall back to snacks or telescope when multiple dirs exist.
-        -- For single-dir workspaces this works perfectly.
 
     elseif backend == "snacks" then
         require("snacks").picker.grep(vim.tbl_extend("force", {
