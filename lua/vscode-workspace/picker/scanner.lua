@@ -19,13 +19,12 @@ local DEFAULT_FILES_ARGS = {
     rg     = { "--files", "--hidden", "--follow", "--color", "never", "--glob", "!.git" },
 }
 
--- Grep args must produce vimgrep-compatible output: file:line:col:text
--- These are appended BEFORE the pattern by each backend as needed.
+-- Grep args: these are EXTRA flags appended to the picker's base command.
+-- Do NOT include output-format flags (--column, --line-number, --no-heading, --color)
+-- because telescope/fzf-lua already set those.
 local DEFAULT_GREP_ARGS = {
-    rg   = { "--hidden", "--follow", "--smart-case", "--color", "always",
-             "--column", "--line-number", "--no-heading" },
-    -- generic grep-compatible fallback
-    grep = { "-rn", "--color=never" },
+    rg   = { "--hidden", "--follow", "--smart-case" },
+    grep = { "-rn" },
 }
 
 -- ── Config-aware tool resolution ──────────────────────────────────────────────
@@ -128,6 +127,19 @@ function M.backend()
     local r = resolve_files()
     if not r.cmd then return "lua" end
     return r.cmd:match("([^/\\]+)$") or r.cmd
+end
+
+--- Returns the full command array ready for jobstart / new_oneshot_job.
+--- Returns nil when no external tool is available (use M.collect fallback).
+---@param dirs string[]
+---@return string[]|nil
+function M.files_cmd(dirs)
+    local r = resolve_files()
+    if not r.cmd then return nil end
+    local argv = { r.cmd }
+    vim.list_extend(argv, r.args)
+    for _, d in ipairs(dirs) do table.insert(argv, d) end
+    return argv
 end
 
 --- Resolved grep config for picker backends.

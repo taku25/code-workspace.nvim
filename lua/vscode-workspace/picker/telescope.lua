@@ -11,52 +11,56 @@ function M.files(spec)
     local conf_t        = require("telescope.config").values
     local actions       = require("telescope.actions")
     local action_state  = require("telescope.actions.state")
-    local entry_display = require("telescope.pickers.entry_display")
     local devicons_ok, devicons = pcall(require, "nvim-web-devicons")
 
-    local displayer = entry_display.create({
+    local displayer = require("telescope.pickers.entry_display").create({
         separator = " ",
         items = devicons_ok and { { width = 2 }, { remaining = true } }
                              or { { remaining = true } },
     })
 
     local function entry_maker(line)
+        if not line or line == "" then return nil end
         local native = line:gsub("/", "\\")
         local tail   = vim.fn.fnamemodify(line, ":t")
         local icon, icon_hl = "", "Normal"
         if devicons_ok then
             local ext = tail:match("%.([^.]+)$") or ""
-            icon     = devicons.get_icon(tail, ext, { default = true }) or ""
-            icon_hl  = "Normal"
+            icon    = devicons.get_icon(tail, ext, { default = true }) or ""
+            icon_hl = "DevIcon" .. ext:upper()
         end
         return {
             value    = line,
             ordinal  = line,
             filename = native,
             path     = native,
-            icon     = icon,
-            icon_hl  = icon_hl,
             display  = function(entry)
                 if devicons_ok then
                     return displayer({ { entry.icon, entry.icon_hl }, tail })
                 end
                 return displayer({ tail })
             end,
+            icon     = icon,
+            icon_hl  = icon_hl,
         }
     end
 
-    -- Shared results table – telescope re-reads this on every refresh
-    local results = {}
-
-    local function make_finder()
-        return finders.new_table({ results = results, entry_maker = entry_maker })
+    -- Use telescope's native async-job finder (same mechanism as builtin find_files)
+    local cmd = scanner.files_cmd(spec.dirs)
+    local finder
+    if cmd then
+        finder = finders.new_oneshot_job(cmd, { entry_maker = entry_maker })
+    else
+        vim.notify("[CW] fd/rg not found – using Lua scanner (.gitignore not respected)",
+            vim.log.levels.WARN)
+        local results = scanner.collect(spec.dirs, spec.is_excluded)
+        finder = finders.new_table({ results = results, entry_maker = entry_maker })
     end
 
     vim.schedule(function()
-        -- Open the picker immediately with whatever is in results (initially empty)
-        local p = pickers.new({ file_ignore_patterns = {} }, {
+        pickers.new({ file_ignore_patterns = {} }, {
             prompt_title = spec.prompt,
-            finder       = make_finder(),
+            finder       = finder,
             sorter       = conf_t.generic_sorter({}),
             previewer    = conf_t.file_previewer({}),
             attach_mappings = spec.on_submit and function(prompt_bufnr)
@@ -67,18 +71,7 @@ function M.files(spec)
                 end)
                 return true
             end or nil,
-        })
-        p:find()
-
-        -- Stream files in asynchronously; refresh picker on each chunk
-        scanner.scan_async(spec.dirs, spec.is_excluded, function(chunk)
-            vim.list_extend(results, chunk)
-            vim.schedule(function()
-                if p.prompt_bufnr and vim.api.nvim_buf_is_valid(p.prompt_bufnr) then
-                    p:refresh(make_finder(), { reset_prompt = false })
-                end
-            end)
-        end, nil)
+        }):find()
     end)
 end
 
@@ -91,7 +84,7 @@ function M.grep(spec)
     }
     if g and g.cmd then
         if g.is_rg then
-            -- Append user args to the default rg invocation
+            -- Only pass extra filtering flags; telescope handles format flags
             opts.additional_args = g.args
         else
             -- Replace entire vimgrep command with custom tool
@@ -101,6 +94,7 @@ function M.grep(spec)
             opts.vimgrep_arguments = argv
         end
     else
+        -- Default: just add hidden/follow to the standard rg invocation
         opts.additional_args = { "--hidden", "--follow" }
     end
     require("telescope.builtin").live_grep(opts)
