@@ -37,12 +37,26 @@ function M.files(spec)
 end
 
 function M.grep(spec)
-    require("fzf-lua").live_grep({
-        prompt  = spec.prompt .. "> ",
-        rg_opts = "--hidden --follow --column --line-number --no-heading "
-               .. "--color=always -g '!.git' -- "
-               .. table.concat(vim.tbl_map(vim.fn.shellescape, spec.dirs), " "),
-    })
+    local g = spec.grep_config
+    local fzf = require("fzf-lua")
+    if g and g.cmd and not g.is_rg then
+        -- Non-rg tool: build exec_cmnd string (pattern injected by fzf-lua as last arg)
+        local base = g.cmd .. " " .. table.concat(g.args or {}, " ")
+        fzf.live_grep({
+            prompt    = spec.prompt .. "> ",
+            exec_cmnd = base,
+            cwd       = spec.dirs[1],
+        })
+    else
+        -- rg (default or configured)
+        local rg_args = (g and g.cmd and g.args) or { "--hidden", "--follow" }
+        fzf.live_grep({
+            prompt  = spec.prompt .. "> ",
+            rg_opts = table.concat(rg_args, " ")
+                   .. " --column --line-number --no-heading --color=always -g '!.git' -- "
+                   .. table.concat(vim.tbl_map(vim.fn.shellescape, spec.dirs), " "),
+        })
+    end
 end
 
 function M.static(spec)

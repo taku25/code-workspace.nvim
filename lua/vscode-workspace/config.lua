@@ -79,27 +79,26 @@ local defaults = {
     picker_function = nil,
 
     -- ── Scanner configuration ─────────────────────────────────────────────────
-    -- Controls which external tool is used when enumerating files.
+    -- Controls which external tool is used when enumerating files or grepping.
     -- Organized by purpose: `files` (CW files / add_favorites) and `grep` (CW grep).
     --
-    -- scanner.files.cmd  – command for file enumeration.
-    --   "fd" | "fdfind" | "/path/to/fd" | "rg" | false (disable external, use Lua)
-    --   nil  = auto-detect: fd > fdfind > rg > Lua
+    -- scanner.files.cmd / scanner.grep.cmd:
+    --   nil   = auto-detect
+    --   string = command name or absolute path (e.g. "fd", "rg", "C:/tools/fd.exe")
+    --   false = skip external tools, use built-in fallback
     --
-    -- scanner.files.args – argument list passed to the command (dirs are appended).
-    --   When nil the built-in defaults are used.
-    --
-    -- scanner.grep is reserved for future grep-tool overrides (currently rg via
-    -- telescope/fzf-lua built-ins, so no override is needed yet).
-    --
-    -- Examples:
-    --   scanner = { files = { cmd = "fd" } }
-    --   scanner = { files = { cmd = "fd", args = { "--type", "f", "--no-ignore" } } }
-    --   scanner = { files = { cmd = false } }  -- force pure-Lua fallback
+    -- scanner.files.args / scanner.grep.args:
+    --   nil   = use built-in defaults for the detected command
+    --   table = use exactly these args (search dirs appended at the end for files;
+    --           pattern + dirs appended for grep)
     scanner = {
         files = {
-            cmd  = nil,   -- nil = auto-detect
-            args = nil,   -- nil = use built-in defaults for the detected command
+            cmd  = nil,   -- nil = auto-detect (fd > fdfind > rg > Lua BFS)
+            args = nil,   -- nil = built-in defaults
+        },
+        grep = {
+            cmd  = nil,   -- nil = auto-detect (rg > grep)
+            args = nil,   -- nil = built-in defaults
         },
     },
 }

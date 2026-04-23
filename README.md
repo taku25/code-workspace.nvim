@@ -304,6 +304,45 @@ scanner = { files = { cmd = "C:/Users/you/scoop/shims/fd.exe" } }
 scanner = { files = { cmd = false } }
 ```
 
+### Configuring the grep tool
+
+`:CW grep` uses `rg` (ripgrep) by default. Customize via `scanner.grep`:
+
+```lua
+require("CW").setup({
+    scanner = {
+        grep = {
+            -- cmd: which tool to use for live grep
+            --   nil   = auto-detect (rg > system grep)
+            --   "rg"  | "grep" | "/absolute/path/to/rg"
+            --   false = use backend default (no override)
+            cmd = nil,
+
+            -- args: argument list passed to cmd before the search pattern.
+            --   nil = use built-in safe defaults.
+            args = nil,
+        },
+    },
+})
+```
+
+Built-in defaults when `args` is `nil`:
+
+| cmd | default args |
+|-----|-------------|
+| `rg` | `--hidden --follow --smart-case` |
+| other | `-rn` |
+
+**Examples:**
+
+```lua
+-- Use ripgrep with extra flags (include hidden, follow symlinks, case-sensitive)
+scanner = { grep = { cmd = "rg", args = { "--hidden", "--follow", "--case-sensitive" } } }
+
+-- Use system grep
+scanner = { grep = { cmd = "grep", args = { "-rn", "--include=*.lua" } } }
+```
+
 
 
 Favorites are displayed at the top of the explorer tree (★ Favorites node) mixed with the workspace folders — no separate tab.

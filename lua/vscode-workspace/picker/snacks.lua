@@ -70,7 +70,13 @@ function M.files(spec)
 end
 
 function M.grep(spec)
-    require("snacks").picker.grep({ title = spec.prompt, dirs = spec.dirs })
+    local g = spec.grep_config
+    local opts = { title = spec.prompt, dirs = spec.dirs }
+    if g and g.cmd then
+        opts.cmd  = g.cmd
+        opts.args = g.args
+    end
+    require("snacks").picker.grep(opts)
 end
 
 function M.static(spec)

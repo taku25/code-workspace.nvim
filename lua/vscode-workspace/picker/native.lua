@@ -29,8 +29,23 @@ end
 function M.grep(spec)
     vim.ui.input({ prompt = "Grep pattern: " }, function(pattern)
         if not pattern or pattern == "" then return end
-        local cmd = "grep -rn " .. vim.fn.shellescape(pattern)
-                 .. " " .. table.concat(vim.tbl_map(vim.fn.shellescape, spec.dirs), " ")
+        local g = spec.grep_config
+        local parts = {}
+        if g and g.cmd then
+            table.insert(parts, g.cmd)
+            for _, a in ipairs(g.args or {}) do table.insert(parts, a) end
+            if g.is_rg then
+                table.insert(parts, "--vimgrep")
+            else
+                table.insert(parts, "-rn")
+            end
+        else
+            table.insert(parts, "rg")
+            table.insert(parts, "--vimgrep")
+        end
+        table.insert(parts, vim.fn.shellescape(pattern))
+        for _, d in ipairs(spec.dirs) do table.insert(parts, vim.fn.shellescape(d)) end
+        local cmd = table.concat(parts, " ")
         vim.fn.setqflist({}, "r", { title = spec.prompt, lines = vim.fn.systemlist(cmd) })
         vim.cmd("copen")
     end)

@@ -4,12 +4,8 @@
 --   2. rg --files   – also very fast, native .gitignore support
 --   3. Pure-Lua BFS – fallback when neither tool is available (no gitignore)
 --
--- The active command and its arguments are resolved from config.scanner.files:
---   cmd  = nil → auto-detect (fd > fdfind > rg)
---   cmd  = "fd" | "fdfind" | "rg" | "/absolute/path" → use that tool
---   cmd  = false → skip external tools, use pure-Lua BFS
---   args = nil  → use built-in safe defaults for the resolved command
---   args = {...} → use exactly these args (dirs appended at the end)
+-- config.scanner.files → controls file enumeration (CW files / add_favorites)
+-- config.scanner.grep  → controls grep command passed to picker backends (CW grep)
 
 local M = {}
 
@@ -17,65 +13,127 @@ local HARD_SKIP = { [".git"] = true, [".vs"] = true, ["node_modules"] = true }
 
 -- ── Default argument sets ─────────────────────────────────────────────────────
 
-local DEFAULT_ARGS = {
+local DEFAULT_FILES_ARGS = {
     fd     = { "--type", "f", "--hidden", "--follow", "--color", "never" },
     fdfind = { "--type", "f", "--hidden", "--follow", "--color", "never" },
     rg     = { "--files", "--hidden", "--follow", "--color", "never", "--glob", "!.git" },
 }
 
+-- Grep args must produce vimgrep-compatible output: file:line:col:text
+-- These are appended BEFORE the pattern by each backend as needed.
+local DEFAULT_GREP_ARGS = {
+    rg   = { "--hidden", "--follow", "--smart-case", "--color", "always",
+             "--column", "--line-number", "--no-heading" },
+    -- generic grep-compatible fallback
+    grep = { "-rn", "--color=never" },
+}
+
 -- ── Config-aware tool resolution ──────────────────────────────────────────────
 
-local _resolved = nil  -- cached { cmd=string|false, args=string[] }
+local _resolved_files = nil
+local _resolved_grep  = nil
 
-local function resolve()
-    if _resolved ~= nil then return _resolved end
+local function resolve_files()
+    if _resolved_files ~= nil then return _resolved_files end
 
     local conf = require("vscode-workspace.config").get()
     local sc   = (conf.scanner and conf.scanner.files) or {}
 
-    -- cmd = false  → user explicitly wants Lua fallback
     if sc.cmd == false then
-        _resolved = { cmd = false, args = {} }
-        return _resolved
+        _resolved_files = { cmd = false, args = {} }
+        return _resolved_files
     end
 
     local function try(cmd)
         if cmd and vim.fn.executable(cmd) == 1 then
-            local base = cmd:match("([^/\\]+)$") or cmd  -- basename for default lookup
-            local args = sc.args or DEFAULT_ARGS[base] or DEFAULT_ARGS["fd"]
-            _resolved = { cmd = cmd, args = vim.deepcopy(args) }
+            local base = cmd:match("([^/\\]+)$") or cmd
+            local args = sc.args or DEFAULT_FILES_ARGS[base] or DEFAULT_FILES_ARGS["fd"]
+            _resolved_files = { cmd = cmd, args = vim.deepcopy(args) }
             return true
         end
     end
 
     if sc.cmd then
-        -- User specified a command – use it (or warn if not found)
         if not try(sc.cmd) then
             vim.notify("[CW] scanner.files.cmd '" .. sc.cmd .. "' not executable – falling back to Lua",
                 vim.log.levels.WARN)
-            _resolved = { cmd = false, args = {} }
+            _resolved_files = { cmd = false, args = {} }
         end
     else
-        -- Auto-detect
         if not try("fd") then
             if not try("fdfind") then
                 try("rg")
             end
         end
-        if not _resolved then
-            _resolved = { cmd = false, args = {} }
+        if not _resolved_files then
+            _resolved_files = { cmd = false, args = {} }
         end
     end
 
-    return _resolved
+    return _resolved_files
 end
 
---- Which backend will be used (for display / debug).
+--- Resolve the grep command + args from config.scanner.grep.
+--- Returns { cmd: string, args: string[], is_rg: boolean }
+--- `is_rg` hints backends whether to use rg-specific options.
+local function resolve_grep()
+    if _resolved_grep ~= nil then return _resolved_grep end
+
+    local conf = require("vscode-workspace.config").get()
+    local sc   = (conf.scanner and conf.scanner.grep) or {}
+
+    if sc.cmd == false then
+        -- Explicitly disabled – backends will use their own default grep
+        _resolved_grep = { cmd = false, args = {}, is_rg = false }
+        return _resolved_grep
+    end
+
+    local function try(cmd)
+        if cmd and vim.fn.executable(cmd) == 1 then
+            local base = cmd:match("([^/\\]+)$") or cmd
+            local args = sc.args or DEFAULT_GREP_ARGS[base] or DEFAULT_GREP_ARGS["grep"]
+            _resolved_grep = {
+                cmd   = cmd,
+                args  = vim.deepcopy(args),
+                is_rg = (base == "rg"),
+            }
+            return true
+        end
+    end
+
+    if sc.cmd then
+        if not try(sc.cmd) then
+            vim.notify("[CW] scanner.grep.cmd '" .. sc.cmd .. "' not executable – using picker default",
+                vim.log.levels.WARN)
+            _resolved_grep = { cmd = false, args = {}, is_rg = false }
+        end
+    else
+        -- Auto-detect: rg is the standard; fall back to system grep
+        if not try("rg") then
+            try("grep")
+        end
+        if not _resolved_grep then
+            _resolved_grep = { cmd = false, args = {}, is_rg = false }
+        end
+    end
+
+    return _resolved_grep
+end
+
+-- ── Public accessors ─────────────────────────────────────────────────────────
+
+--- Which files-scan backend will be used.
 ---@return string  "fd" | "fdfind" | "rg" | "lua"
 function M.backend()
-    local r = resolve()
+    local r = resolve_files()
     if not r.cmd then return "lua" end
     return r.cmd:match("([^/\\]+)$") or r.cmd
+end
+
+--- Resolved grep config for picker backends.
+---@return { cmd: string|false, args: string[], is_rg: boolean }
+function M.grep_config()
+    return resolve_grep()
 end
 
 -- ── Job-based async scan (fd / rg) ───────────────────────────────────────────
@@ -175,7 +233,7 @@ function M.scan_async(dirs, is_excluded, on_chunk, on_done)
         if on_done then on_done() end
         return
     end
-    local r = resolve()
+    local r = resolve_files()
     if r.cmd then
         scan_with_job(r, dirs, on_chunk, on_done)
     else

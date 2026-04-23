@@ -92,10 +92,12 @@ function M.live_grep(dirs, opts)
         vim.notify("[CW] No folders to search", vim.log.levels.WARN)
         return
     end
+    local scanner = require("vscode-workspace.picker.scanner")
     dispatch({
-        type   = "grep",
-        prompt = opts.prompt or "CW Grep",
-        dirs   = dirs,
+        type       = "grep",
+        prompt     = opts.prompt or "CW Grep",
+        dirs       = dirs,
+        grep_config = scanner.grep_config(),
     })
 end
 

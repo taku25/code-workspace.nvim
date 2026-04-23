@@ -83,12 +83,27 @@ function M.files(spec)
 end
 
 function M.grep(spec)
-    require("telescope.builtin").live_grep({
+    local g = spec.grep_config
+    local opts = {
         prompt_title         = spec.prompt,
         search_dirs          = spec.dirs,
         file_ignore_patterns = {},
-        additional_args      = { "--hidden", "--follow" },
-    })
+    }
+    if g and g.cmd then
+        if g.is_rg then
+            -- Append user args to the default rg invocation
+            opts.additional_args = g.args
+        else
+            -- Replace entire vimgrep command with custom tool
+            local argv = { g.cmd }
+            vim.list_extend(argv, g.args or {})
+            vim.list_extend(argv, { "--with-filename", "--line-number", "--column" })
+            opts.vimgrep_arguments = argv
+        end
+    else
+        opts.additional_args = { "--hidden", "--follow" }
+    end
+    require("telescope.builtin").live_grep(opts)
 end
 
 function M.static(spec)
