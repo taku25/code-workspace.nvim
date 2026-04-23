@@ -9,17 +9,12 @@ local M = {}
 ---@param ws? table  Workspace object (auto-detected if nil)
 function M.execute(ws)
     if ws then
-        local conf    = require("vscode-workspace.config").get()
         local folders = workspace.get_folder_paths(ws)
         if #folders == 0 then
             vim.notify("[CW] No accessible folders in workspace", vim.log.levels.WARN)
             return
         end
-        if type(conf.work_grep) == "function" then
-            conf.work_grep(folders)
-        else
-            picker.live_grep(folders, { prompt = ws.name .. " Grep" })
-        end
+        picker.live_grep(folders, { prompt = ws.name .. " Grep" })
         return
     end
 

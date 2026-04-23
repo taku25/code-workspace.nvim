@@ -53,11 +53,30 @@ local defaults = {
         file_delete       = "d",
         file_rename       = "r",
     },
-    -- Optional: override picker behavior
-    -- work_files = function(folders) ... end,
-    -- work_grep  = function(folders) ... end,
-    work_files = nil,
-    work_grep  = nil,
+    -- ── Picker configuration ─────────────────────────────────────────────────
+    -- picker: explicitly name the backend to use.
+    --   "telescope" | "fzf-lua" | "snacks" | "native"
+    --   nil = auto-detect from installed plugins (telescope > fzf-lua > snacks > native)
+    picker = nil,
+
+    -- picker_function: fully custom picker. When set, ALL picker calls go here.
+    -- Receives a spec table with:
+    --   spec.type       "files" | "grep" | "static"
+    --   spec.prompt     string  title / prompt text
+    --   spec.dirs       string[]  (type="files" or "grep") directories to search
+    --   spec.items      string[]  (type="static") pre-built list to pick from
+    --   spec.on_submit  fun(choice: string|nil)  (type="static") selection callback
+    -- Example:
+    --   picker_function = function(spec)
+    --     if spec.type == "files" then
+    --       require("telescope.builtin").find_files({ search_dirs = spec.dirs })
+    --     elseif spec.type == "grep" then
+    --       require("telescope.builtin").live_grep({ search_dirs = spec.dirs })
+    --     elseif spec.type == "static" then
+    --       vim.ui.select(spec.items, { prompt = spec.prompt }, spec.on_submit)
+    --     end
+    --   end,
+    picker_function = nil,
 }
 
 local current = vim.deepcopy(defaults)

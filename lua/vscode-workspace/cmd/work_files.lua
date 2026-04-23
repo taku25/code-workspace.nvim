@@ -45,21 +45,16 @@ end
 ---@param ws? table  Workspace object (auto-detected if nil)
 function M.execute(ws)
     if ws then
-        local conf    = require("vscode-workspace.config").get()
         local folders = workspace.get_folder_paths(ws)
         if #folders == 0 then
             vim.notify("[CW] No accessible folders in workspace", vim.log.levels.WARN)
             return
         end
-        if type(conf.work_files) == "function" then
-            conf.work_files(folders)
-        else
-            local is_excluded = make_exclude_fn(ws.exclude_map or {})
-            picker.find_files(folders, {
-                prompt      = ws.name .. " Files",
-                is_excluded = is_excluded,
-            })
-        end
+        local is_excluded = make_exclude_fn(ws.exclude_map or {})
+        picker.find_files(folders, {
+            prompt      = ws.name .. " Files",
+            is_excluded = is_excluded,
+        })
         return
     end
 
