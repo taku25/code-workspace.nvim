@@ -79,4 +79,48 @@ function M.exists(p)
     return vim.loop.fs_stat(p) ~= nil
 end
 
+--- Returns a path_display function (for picker backends) that strips the
+--- nearest workspace root prefix so paths appear workspace-relative.
+--- Falls back to cwd-relative when no prefix matches.
+---@param dirs string[]  workspace folder paths
+---@return function  path_display(opts, path) -> string
+function M.workspace_path_display(dirs)
+    local is_win = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
+    local prefixes = {}
+    for _, d in ipairs(dirs) do
+        local p = vim.fs.normalize(d)
+        if p:sub(-1) ~= "/" then p = p .. "/" end
+        table.insert(prefixes, p)
+    end
+    table.sort(prefixes, function(a, b) return #a > #b end)
+
+    local _debug = false  -- enable temporarily to diagnose prefix mismatches
+    return function(_, path)
+        local norm = vim.fs.normalize(path)
+        local norm_cmp = is_win and norm:lower() or norm
+        for _, prefix in ipairs(prefixes) do
+            local pcmp = is_win and prefix:lower() or prefix
+            if norm_cmp:sub(1, #pcmp) == pcmp then
+                local rel = norm:sub(#prefix + 1)
+                if _debug then
+                    _debug = false
+                    vim.notify("[CW] path_display OK\n  path=" .. path .. "\n  rel=" .. rel, vim.log.levels.INFO)
+                end
+                return rel
+            end
+        end
+        if _debug then
+            _debug = false
+            vim.notify(
+                "[CW] path_display: prefix not matched\n"
+                    .. "  path     = " .. path .. "\n"
+                    .. "  norm     = " .. norm .. "\n"
+                    .. "  prefix[1]= " .. (prefixes[1] or "none"),
+                vim.log.levels.WARN
+            )
+        end
+        return vim.fn.fnamemodify(path, ":.")
+    end
+end
+
 return M

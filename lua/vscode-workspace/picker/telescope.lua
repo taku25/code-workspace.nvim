@@ -1,35 +1,45 @@
 -- lua/vscode-workspace/picker/telescope.lua
 -- Telescope backend for find_files / live_grep / static select.
 
-local scanner = require("vscode-workspace.picker.scanner")
+local path = require("vscode-workspace.path")
 
 local M = {}
 
--- ── Path display helpers ──────────────────────────────────────────────────────
+-- ── entry maker ───────────────────────────────────────────────────────────────
 
---- Returns a path_display function that shows paths relative to the nearest
---- workspace root.  Falls back to cwd-relative when no prefix matches.
----@param dirs string[]  workspace folder paths (forward-slash normalized)
+--- Custom entry_maker for find_files that shows workspace-relative paths.
+--- entry.value / entry.path stay absolute so the previewer and on_submit work.
+---@param dirs string[]
 ---@return function
-local function workspace_path_display(dirs)
-    -- Build prefix list: normalize to forward slashes, ensure trailing slash.
-    local prefixes = {}
-    for _, d in ipairs(dirs) do
-        local p = d:gsub("\\", "/")
-        if p:sub(-1) ~= "/" then p = p .. "/" end
-        table.insert(prefixes, p)
-    end
-    -- Sort longest first so the most-specific root matches first.
-    table.sort(prefixes, function(a, b) return #a > #b end)
+local function make_relative_entry_maker(dirs)
+    local rel        = path.workspace_path_display(dirs)
+    local devicons_ok, devicons = pcall(require, "nvim-web-devicons")
+    local entry_display = require("telescope.pickers.entry_display")
 
-    return function(_, path)
-        local norm = path:gsub("\\", "/")
-        for _, prefix in ipairs(prefixes) do
-            if norm:sub(1, #prefix) == prefix then
-                return norm:sub(#prefix + 1)   -- strip workspace root
+    local displayer
+    if devicons_ok then
+        displayer = entry_display.create({ separator = " ", items = { { width = 2 }, { remaining = true } } })
+    end
+
+    return function(line)
+        if not line or line == "" then return nil end
+        local display_path = rel({}, line)
+        local entry = {
+            value    = line,
+            ordinal  = display_path,
+            path     = line,
+            filename = line,
+        }
+        if devicons_ok and displayer then
+            local ext        = vim.fn.fnamemodify(line, ":e")
+            local icon, hl   = devicons.get_icon(line, ext, { default = true })
+            entry.display = function(_)
+                return displayer({ { icon, hl }, display_path })
             end
+        else
+            entry.display = display_path
         end
-        return vim.fn.fnamemodify(path, ":.")  -- fallback: cwd-relative
+        return entry
     end
 end
 
@@ -44,58 +54,19 @@ function M.files(spec)
             actions.close(prompt_bufnr)
             local sel = action_state.get_selected_entry()
             if sel then
-                local path = sel.path or sel.filename or sel.value
-                spec.on_submit(path)
+                local fpath = sel.path or sel.filename or sel.value
+                spec.on_submit(fpath)
             end
         end)
         return true
     end or nil
 
-    -- Primary: let telescope detect fd/rg itself and restrict to our dirs.
-    -- telescope.builtin.find_files uses new_oneshot_job internally (async),
-    -- handles Windows PATH, and avoids the .bat / absolute-path issues
-    -- we would have when building find_command manually.
-    if vim.fn.executable("fd") == 1 or vim.fn.executable("fdfind") == 1
-            or vim.fn.executable("rg") == 1 then
-        local picker_opts = {
-            prompt_title  = spec.prompt,
-            search_dirs   = spec.dirs,
-            path_display  = workspace_path_display(spec.dirs),
-            attach_mappings = attach,
-        }
-        require("telescope.builtin").find_files(picker_opts)
-        return
-    end
-
-    -- Fallback A: custom find_command (our cmd.exe-wrapped argv)
-    local cmd = scanner.files_cmd(spec.dirs)
-    if cmd then
-        require("telescope.builtin").find_files({
-            prompt_title    = spec.prompt,
-            find_command    = cmd,
-            path_display    = workspace_path_display(spec.dirs),
-            attach_mappings = attach,
-        })
-        return
-    end
-
-    -- Fallback B: pure-Lua BFS (no .gitignore support)
-    vim.notify("[CW] fd/rg not found – using Lua scanner", vim.log.levels.WARN)
-    local finders = require("telescope.finders")
-    local conf_t  = require("telescope.config").values
-    local pickers = require("telescope.pickers")
-    local raw = scanner.collect(spec.dirs, spec.is_excluded)
-    vim.schedule(function()
-        local picker_opts = {
-            prompt_title  = spec.prompt,
-            finder        = finders.new_table({ results = raw }),
-            sorter        = conf_t.generic_sorter({}),
-            previewer     = conf_t.file_previewer({}),
-            path_display  = workspace_path_display(spec.dirs),
-            attach_mappings = attach,
-        }
-        pickers.new({}, picker_opts):find()
-    end)
+    require("telescope.builtin").find_files({
+        prompt_title    = spec.prompt,
+        search_dirs     = spec.dirs,
+        entry_maker     = make_relative_entry_maker(spec.dirs),
+        attach_mappings = attach,
+    })
 end
 
 -- ── grep ──────────────────────────────────────────────────────────────────────
