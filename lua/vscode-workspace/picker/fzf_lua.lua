@@ -21,7 +21,22 @@ function M.files(spec)
     fzf.files(opts)
 end
 
-function M.grep(spec)
+function M.files_static(spec)
+    require("fzf-lua").fzf_exec(spec.items, {
+        prompt  = spec.prompt .. "> ",
+        actions = {
+            ["default"] = function(selected)
+                local fpath = selected and selected[1]
+                if fpath then
+                    if spec.on_submit then spec.on_submit(fpath)
+                    else vim.cmd("edit " .. vim.fn.fnameescape(fpath)) end
+                end
+            end,
+        },
+    })
+end
+
+
     require("fzf-lua").live_grep({
         prompt      = spec.prompt .. "> ",
         search_dirs = spec.dirs,

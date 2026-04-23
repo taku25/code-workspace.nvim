@@ -99,7 +99,26 @@ function M.live_grep(dirs, opts)
     })
 end
 
---- Show a static list of strings in the picker.
+--- Open a picker with a static list of file paths (e.g. favorites).
+--- Unlike find_files, the items are already resolved paths, not dirs to search.
+---@param file_paths string[]
+---@param opts? { prompt?: string, dirs?: string[], on_submit?: fun(path:string) }
+function M.pick_files(file_paths, opts)
+    opts = opts or {}
+    if #file_paths == 0 then
+        vim.notify("[CW] No files to show", vim.log.levels.WARN)
+        return
+    end
+    dispatch({
+        type      = "files_static",
+        prompt    = opts.prompt or "CW Files",
+        items     = file_paths,
+        dirs      = opts.dirs or {},
+        on_submit = opts.on_submit,
+    })
+end
+
+
 --- on_submit receives the selected string (or nil on cancel).
 ---@param items  string[]
 ---@param opts   { prompt?: string, on_submit: fun(choice: string|nil) }

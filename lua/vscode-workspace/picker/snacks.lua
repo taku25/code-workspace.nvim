@@ -18,7 +18,23 @@ function M.files(spec)
     snacks.picker.files(opts)
 end
 
-function M.grep(spec)
+function M.files_static(spec)
+    require("snacks").picker.pick({
+        title = spec.prompt,
+        items = vim.tbl_map(function(p) return { text = p, file = p } end, spec.items),
+        format = function(item) return { { item.text } } end,
+        confirm = function(picker, item)
+            picker:close()
+            local fpath = item and item.file
+            if fpath then
+                if spec.on_submit then spec.on_submit(fpath)
+                else vim.cmd("edit " .. vim.fn.fnameescape(fpath)) end
+            end
+        end,
+    })
+end
+
+
     require("snacks").picker.grep({
         title = spec.prompt,
         dirs  = spec.dirs,

@@ -69,7 +69,46 @@ function M.files(spec)
     })
 end
 
--- ── grep ──────────────────────────────────────────────────────────────────────
+-- ── files_static (e.g. favorites: pre-resolved file paths) ───────────────────
+
+function M.files_static(spec)
+    local finders      = require("telescope.finders")
+    local pickers      = require("telescope.pickers")
+    local conf_t       = require("telescope.config").values
+    local actions      = require("telescope.actions")
+    local action_state = require("telescope.actions.state")
+
+    local attach = function(prompt_bufnr)
+        actions.select_default:replace(function()
+            actions.close(prompt_bufnr)
+            local sel = action_state.get_selected_entry()
+            if sel then
+                local fpath = sel.path or sel.filename or sel.value
+                if spec.on_submit then
+                    spec.on_submit(fpath)
+                else
+                    vim.cmd("edit " .. vim.fn.fnameescape(fpath))
+                end
+            end
+        end)
+        return true
+    end
+
+    vim.schedule(function()
+        pickers.new({}, {
+            prompt_title = spec.prompt,
+            finder       = finders.new_table({
+                results      = spec.items,
+                entry_maker  = make_relative_entry_maker(spec.dirs),
+            }),
+            sorter    = conf_t.generic_sorter({}),
+            previewer = conf_t.file_previewer({}),
+            attach_mappings = attach,
+        }):find()
+    end)
+end
+
+
 
 function M.grep(spec)
     require("telescope.builtin").live_grep({
