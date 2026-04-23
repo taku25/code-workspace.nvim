@@ -94,22 +94,10 @@ end
 -- ── grep ──────────────────────────────────────────────────────────────────────
 
 function M.grep(spec)
-    local opts = {
+    require("telescope.builtin").live_grep({
         prompt_title = spec.prompt,
         search_dirs  = spec.dirs,
-    }
-
-    -- On Windows, rg may be a .bat shim – supply explicit vimgrep_arguments
-    -- so that cmd.exe /C wrapping is applied when needed.
-    if vim.fn.has("win32") == 1 then
-        local rg_base = {
-            "--color=never", "--no-heading",
-            "--with-filename", "--line-number", "--column", "--smart-case",
-        }
-        opts.vimgrep_arguments = safe_argv("rg", rg_base)
-    end
-
-    require("telescope.builtin").live_grep(opts)
+    })
 end
 
 -- ── static select ─────────────────────────────────────────────────────────────

@@ -1,13 +1,12 @@
 -- lua/vscode-workspace/picker/native.lua
 -- Native fallback: vim.ui.select / vim.ui.input + quickfix for grep.
+-- This is the only backend that uses the scanner (fd/rg/Lua BFS) directly.
 
 local scanner = require("vscode-workspace.picker.scanner")
 
 local M = {}
 
 function M.files(spec)
-    -- Native fallback uses vim.ui.select which requires all items up front.
-    -- Notify the user that scanning is in progress, then collect synchronously.
     vim.notify("[CW] Scanning files…", vim.log.levels.INFO)
     vim.schedule(function()
         local results = scanner.collect(spec.dirs, spec.is_excluded)
@@ -29,16 +28,12 @@ end
 function M.grep(spec)
     vim.ui.input({ prompt = "Grep pattern: " }, function(pattern)
         if not pattern or pattern == "" then return end
-        local g = spec.grep_config
+        local g = scanner.grep_config()
         local parts = {}
         if g and g.cmd then
             table.insert(parts, g.cmd)
             for _, a in ipairs(g.args or {}) do table.insert(parts, a) end
-            if g.is_rg then
-                table.insert(parts, "--vimgrep")
-            else
-                table.insert(parts, "-rn")
-            end
+            table.insert(parts, g.is_rg and "--vimgrep" or "-rn")
         else
             table.insert(parts, "rg")
             table.insert(parts, "--vimgrep")
