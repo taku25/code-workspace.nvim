@@ -1,7 +1,7 @@
 -- lua/CW/cmd/work_grep.lua
 
 local workspace = require("vscode-workspace.workspace")
-local picker    = require("vscode-workspace.cmd.picker")
+local picker    = require("vscode-workspace.picker")
 
 local M = {}
 

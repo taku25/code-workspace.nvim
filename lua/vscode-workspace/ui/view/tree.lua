@@ -7,7 +7,7 @@ local renderer = require("vscode-workspace.ui.renderer")
 local filter   = require("vscode-workspace.filter")
 local path     = require("vscode-workspace.path")
 local store    = require("vscode-workspace.store")
-local picker   = require("vscode-workspace.cmd.picker")
+local picker   = require("vscode-workspace.picker")
 
 local M = {}
 
