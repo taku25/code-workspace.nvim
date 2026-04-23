@@ -251,7 +251,60 @@ require("CW").setup({
 
 `picker_function` takes priority over the `picker` setting.
 
-## Favorites
+## Scanner (file enumeration)
+
+`:CW files` and the add-favorites picker need to enumerate every file in your workspace.
+The scanner tier is chosen automatically:
+
+| Priority | Tool | `.gitignore` respected |
+|----------|------|----------------------|
+| 1 | `fd` / `fdfind` | ✅ |
+| 2 | `rg --files` | ✅ |
+| 3 | Pure-Lua BFS | ❌ (warns you) |
+
+### Configuring the scanner
+
+All options live under `scanner.files`:
+
+```lua
+require("CW").setup({
+    scanner = {
+        files = {
+            -- cmd: which tool to use for file enumeration
+            --   nil   = auto-detect (fd > fdfind > rg > Lua)
+            --   "fd"  | "fdfind" | "rg" | "/absolute/path/to/fd"
+            --   false = skip external tools, always use pure-Lua BFS
+            cmd = nil,
+
+            -- args: argument list passed to cmd (workspace dirs are appended).
+            --   nil = use the built-in safe defaults shown below.
+            args = nil,
+        },
+    },
+})
+```
+
+Built-in defaults when `args` is `nil`:
+
+| cmd | default args |
+|-----|-------------|
+| `fd` / `fdfind` | `--type f --hidden --follow --color never` |
+| `rg` | `--files --hidden --follow --color never --glob !.git` |
+
+**Examples:**
+
+```lua
+-- Force fd, add --no-ignore to see files ignored by .gitignore too
+scanner = { files = { cmd = "fd", args = { "--type", "f", "--no-ignore" } } }
+
+-- Full path (e.g. installed via scoop on Windows)
+scanner = { files = { cmd = "C:/Users/you/scoop/shims/fd.exe" } }
+
+-- Disable external tools; use pure-Lua BFS
+scanner = { files = { cmd = false } }
+```
+
+
 
 Favorites are displayed at the top of the explorer tree (★ Favorites node) mixed with the workspace folders — no separate tab.
 

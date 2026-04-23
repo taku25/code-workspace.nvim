@@ -77,6 +77,31 @@ local defaults = {
     --     end
     --   end,
     picker_function = nil,
+
+    -- ── Scanner configuration ─────────────────────────────────────────────────
+    -- Controls which external tool is used when enumerating files.
+    -- Organized by purpose: `files` (CW files / add_favorites) and `grep` (CW grep).
+    --
+    -- scanner.files.cmd  – command for file enumeration.
+    --   "fd" | "fdfind" | "/path/to/fd" | "rg" | false (disable external, use Lua)
+    --   nil  = auto-detect: fd > fdfind > rg > Lua
+    --
+    -- scanner.files.args – argument list passed to the command (dirs are appended).
+    --   When nil the built-in defaults are used.
+    --
+    -- scanner.grep is reserved for future grep-tool overrides (currently rg via
+    -- telescope/fzf-lua built-ins, so no override is needed yet).
+    --
+    -- Examples:
+    --   scanner = { files = { cmd = "fd" } }
+    --   scanner = { files = { cmd = "fd", args = { "--type", "f", "--no-ignore" } } }
+    --   scanner = { files = { cmd = false } }  -- force pure-Lua fallback
+    scanner = {
+        files = {
+            cmd  = nil,   -- nil = auto-detect
+            args = nil,   -- nil = use built-in defaults for the detected command
+        },
+    },
 }
 
 local current = vim.deepcopy(defaults)
