@@ -6,18 +6,23 @@ local scanner = require("vscode-workspace.picker.scanner")
 local M = {}
 
 function M.files(spec)
-    local results = scanner.collect(spec.dirs, spec.is_excluded)
-    if #results == 0 then
-        vim.notify("[CW] No files found in workspace folders", vim.log.levels.WARN)
-        return
-    end
-    vim.ui.select(results, { prompt = spec.prompt }, function(choice)
-        if not choice then return end
-        if spec.on_submit then
-            spec.on_submit(choice)
-        else
-            vim.cmd("edit " .. vim.fn.fnameescape(choice))
+    -- Native fallback uses vim.ui.select which requires all items up front.
+    -- Notify the user that scanning is in progress, then collect synchronously.
+    vim.notify("[CW] Scanning files…", vim.log.levels.INFO)
+    vim.schedule(function()
+        local results = scanner.collect(spec.dirs, spec.is_excluded)
+        if #results == 0 then
+            vim.notify("[CW] No files found in workspace folders", vim.log.levels.WARN)
+            return
         end
+        vim.ui.select(results, { prompt = spec.prompt }, function(choice)
+            if not choice then return end
+            if spec.on_submit then
+                spec.on_submit(choice)
+            else
+                vim.cmd("edit " .. vim.fn.fnameescape(choice))
+            end
+        end)
     end)
 end
 

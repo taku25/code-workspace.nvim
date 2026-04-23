@@ -6,12 +6,6 @@ local scanner = require("vscode-workspace.picker.scanner")
 local M = {}
 
 function M.files(spec)
-    local results = scanner.collect(spec.dirs, spec.is_excluded)
-    if #results == 0 then
-        vim.notify("[CW] No files found in workspace folders", vim.log.levels.WARN)
-        return
-    end
-
     local pickers       = require("telescope.pickers")
     local finders       = require("telescope.finders")
     local conf_t        = require("telescope.config").values
@@ -26,38 +20,45 @@ function M.files(spec)
                              or { { remaining = true } },
     })
 
+    local function entry_maker(line)
+        local native = line:gsub("/", "\\")
+        local tail   = vim.fn.fnamemodify(line, ":t")
+        local icon, icon_hl = "", "Normal"
+        if devicons_ok then
+            local ext = tail:match("%.([^.]+)$") or ""
+            icon     = devicons.get_icon(tail, ext, { default = true }) or ""
+            icon_hl  = "Normal"
+        end
+        return {
+            value    = line,
+            ordinal  = line,
+            filename = native,
+            path     = native,
+            icon     = icon,
+            icon_hl  = icon_hl,
+            display  = function(entry)
+                if devicons_ok then
+                    return displayer({ { entry.icon, entry.icon_hl }, tail })
+                end
+                return displayer({ tail })
+            end,
+        }
+    end
+
+    -- Shared results table – telescope re-reads this on every refresh
+    local results = {}
+
+    local function make_finder()
+        return finders.new_table({ results = results, entry_maker = entry_maker })
+    end
+
     vim.schedule(function()
-        pickers.new({ file_ignore_patterns = {} }, {
+        -- Open the picker immediately with whatever is in results (initially empty)
+        local p = pickers.new({ file_ignore_patterns = {} }, {
             prompt_title = spec.prompt,
-            finder = finders.new_table({
-                results     = results,
-                entry_maker = function(line)
-                    local native = line:gsub("/", "\\")
-                    local tail   = vim.fn.fnamemodify(line, ":t")
-                    local icon, icon_hl = "", "Normal"
-                    if devicons_ok then
-                        local ext = tail:match("%.([^.]+)$") or ""
-                        icon     = devicons.get_icon(tail, ext, { default = true }) or ""
-                        icon_hl  = "Normal"
-                    end
-                    return {
-                        value    = line,
-                        ordinal  = line,
-                        filename = native,
-                        path     = native,
-                        icon     = icon,
-                        icon_hl  = icon_hl,
-                        display  = function(entry)
-                            if devicons_ok then
-                                return displayer({ { entry.icon, entry.icon_hl }, tail })
-                            end
-                            return displayer({ tail })
-                        end,
-                    }
-                end,
-            }),
-            sorter    = conf_t.generic_sorter({}),
-            previewer = conf_t.file_previewer({}),
+            finder       = make_finder(),
+            sorter       = conf_t.generic_sorter({}),
+            previewer    = conf_t.file_previewer({}),
             attach_mappings = spec.on_submit and function(prompt_bufnr)
                 actions.select_default:replace(function()
                     actions.close(prompt_bufnr)
@@ -66,7 +67,18 @@ function M.files(spec)
                 end)
                 return true
             end or nil,
-        }):find()
+        })
+        p:find()
+
+        -- Stream files in asynchronously; refresh picker on each chunk
+        scanner.scan_async(spec.dirs, spec.is_excluded, function(chunk)
+            vim.list_extend(results, chunk)
+            vim.schedule(function()
+                if p.prompt_bufnr and vim.api.nvim_buf_is_valid(p.prompt_bufnr) then
+                    p:refresh(make_finder(), { reset_prompt = false })
+                end
+            end)
+        end, nil)
     end)
 end
 

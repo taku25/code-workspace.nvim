@@ -6,13 +6,24 @@ local scanner = require("vscode-workspace.picker.scanner")
 local M = {}
 
 function M.files(spec)
-    local results = scanner.collect(spec.dirs, spec.is_excluded)
-    if #results == 0 then
-        vim.notify("[CW] No files found in workspace folders", vim.log.levels.WARN)
-        return
-    end
     local fzf = require("fzf-lua")
-    require("fzf-lua").fzf_exec(results, {
+
+    -- fzf_exec with a generator function: fzf opens immediately,
+    -- items stream in as scan_async pushes chunks.
+    fzf.fzf_exec(function(fzf_cb)
+        scanner.scan_async(spec.dirs, spec.is_excluded, function(chunk)
+            -- fzf_cb is thread-safe; schedule onto main loop each chunk
+            vim.schedule(function()
+                for _, f in ipairs(chunk) do
+                    fzf_cb(f)
+                end
+            end)
+        end, function()
+            vim.schedule(function()
+                fzf_cb() -- nil / no-arg signals completion to fzf
+            end)
+        end)
+    end, {
         prompt    = spec.prompt .. "> ",
         previewer = "builtin",
         actions   = spec.on_submit and {
