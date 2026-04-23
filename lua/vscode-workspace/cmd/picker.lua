@@ -152,7 +152,69 @@ function M.find_files(folders, opts)
     end
 end
 
--- ── Live grep ────────────────────────────────────────────────────────────────
+-- ── Generic item select ──────────────────────────────────────────────────────
+
+--- Show a list of strings in the configured picker backend.
+--- on_submit receives the selected string (or nil on cancel).
+---@param items   string[]
+---@param opts?   { prompt?: string, on_submit: fun(choice: string|nil) }
+function M.select(items, opts)
+    opts = opts or {}
+    local title     = opts.prompt or "Select"
+    local on_submit = opts.on_submit or function() end
+    local backend   = get_backend()
+
+    if backend == "telescope" then
+        local pickers      = require("telescope.pickers")
+        local finders      = require("telescope.finders")
+        local conf_t       = require("telescope.config").values
+        local actions      = require("telescope.actions")
+        local action_state = require("telescope.actions.state")
+
+        vim.schedule(function()
+            pickers.new({}, {
+                prompt_title = title,
+                finder       = finders.new_table({ results = items }),
+                sorter       = conf_t.generic_sorter({}),
+                attach_mappings = function(prompt_bufnr)
+                    actions.select_default:replace(function()
+                        actions.close(prompt_bufnr)
+                        local sel = action_state.get_selected_entry()
+                        on_submit(sel and sel[1] or nil)
+                    end)
+                    return true
+                end,
+            }):find()
+        end)
+
+    elseif backend == "fzf-lua" then
+        require("fzf-lua").fzf_exec(items, {
+            prompt  = title .. "> ",
+            actions = {
+                ["default"] = function(selected)
+                    on_submit(selected and selected[1] or nil)
+                end,
+            },
+        })
+
+    elseif backend == "snacks" then
+        local snacks_items = vim.tbl_map(function(s) return { text = s } end, items)
+        require("snacks").picker.pick({
+            title  = title,
+            items  = snacks_items,
+            format = function(item) return { { item.text } } end,
+            confirm = function(picker, item)
+                picker:close()
+                on_submit(item and item.text or nil)
+            end,
+        })
+
+    else
+        vim.ui.select(items, { prompt = title }, on_submit)
+    end
+end
+
+
 
 ---@param folders string[]
 ---@param opts?   table  { prompt? }

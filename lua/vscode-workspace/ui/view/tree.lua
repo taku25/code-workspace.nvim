@@ -7,6 +7,7 @@ local renderer = require("vscode-workspace.ui.renderer")
 local filter   = require("vscode-workspace.filter")
 local path     = require("vscode-workspace.path")
 local store    = require("vscode-workspace.store")
+local picker   = require("vscode-workspace.cmd.picker")
 
 local M = {}
 
@@ -331,7 +332,7 @@ function M.new(buf, ws)
 
         local choices = { "(Root level)" }
         for _, fp in ipairs(folder_paths) do table.insert(choices, fp.display) end
-        vim.ui.select(choices, { prompt = "Add to favorites folder:" }, function(choice)
+        picker.select(choices, { prompt = "Add to favorites folder:", on_submit = function(choice)
             if not choice then return end
             if choice == "(Root level)" then
                 do_add(nil)
@@ -339,7 +340,7 @@ function M.new(buf, ws)
                 local parts = vim.split(choice, "/", { plain = true })
                 do_add(parts[#parts])
             end
-        end)
+        end })
         return true  -- async; caller should use on_done
     end
 
@@ -526,7 +527,7 @@ function M.new(buf, ws)
         end
         local display_choices = vim.tbl_map(function(c) return c.display end, choices)
 
-        vim.ui.select(display_choices, { prompt = "Move to:" }, function(choice)
+        picker.select(display_choices, { prompt = "Move to:", on_submit = function(choice)
             if not choice then return end
             local target_name = nil
             for _, c in ipairs(choices) do
@@ -548,7 +549,7 @@ function M.new(buf, ws)
             store.save_ws(ws.safe_name, "favorites", fav_data)
             rebuild_favorites()
             tree:render()
-        end)
+        end })
     end
 
     -- ── File system operations ────────────────────────────────────────────────
