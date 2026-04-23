@@ -251,8 +251,10 @@ function M.new(buf, ws)
             if expanded_ids[child.id] then
                 local cn = tree:get_node(child.id)
                 if cn then
+                    -- scan children FIRST (sets _child_ids), THEN expand
+                    -- nui.tree's expand() is a no-op when _child_ids is nil
+                    view.expand_node(cn)
                     cn:expand()
-                    view.expand_node(cn)  -- recursively restore nested expansions
                 end
             end
         end
@@ -663,8 +665,10 @@ function M.new(buf, ws)
             if not vim.api.nvim_buf_is_valid(buf) then return end
             for _, root_node in ipairs(tree:get_nodes()) do
                 if root_node.type == "directory" and expanded_ids[root_node.id] then
-                    root_node:expand()
+                    -- scan children FIRST (sets _child_ids), THEN expand
+                    -- nui.tree's expand() is a no-op when _child_ids is nil
                     view.expand_node(root_node)
+                    root_node:expand()
                 end
             end
             tree:render()
