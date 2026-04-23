@@ -1,7 +1,7 @@
 -- lua/CW/cmd/add_favorites.lua
 -- Add files/directories to Favorites via picker (UNX.nvim compatible command)
 
-local picker = require("vscode-workspace.cmd.picker")
+local picker = require("vscode-workspace.picker")
 local M = {}
 
 function M.execute()

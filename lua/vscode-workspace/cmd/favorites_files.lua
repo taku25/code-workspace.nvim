@@ -1,7 +1,7 @@
 -- lua/CW/cmd/favorites_files.lua
 -- Open favorites in a picker
 
-local picker = require("vscode-workspace.cmd.picker")
+local picker = require("vscode-workspace.picker")
 local M = {}
 
 function M.execute()
