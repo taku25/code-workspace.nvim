@@ -46,10 +46,14 @@ end
 ---@param ws_dir string  Directory containing the .code-workspace file
 ---@return string  Normalized absolute path
 local function resolve_folder_path(raw_path, ws_dir)
+    local joined
     if raw_path:match("^[A-Za-z]:") or raw_path:match("^/") or raw_path:match("^\\\\") then
-        return path.normalize(raw_path)
+        joined = raw_path
+    else
+        joined = path.join(ws_dir, raw_path)
     end
-    return path.join(ws_dir, raw_path)
+    -- simplify() resolves "." and ".." components so node IDs are canonical
+    return path.normalize(vim.fn.simplify(joined))
 end
 
 --- Detect if a workspace is a UEFN project by inspecting folder names.
