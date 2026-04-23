@@ -1,7 +1,8 @@
 -- lua/vscode-workspace/picker/telescope.lua
 -- Telescope backend for find_files / live_grep / static select.
 
-local path = require("vscode-workspace.path")
+local path   = require("vscode-workspace.path")
+local filter = require("vscode-workspace.filter")
 
 local M = {}
 
@@ -62,10 +63,11 @@ function M.files(spec)
     end or nil
 
     require("telescope.builtin").find_files({
-        prompt_title    = spec.prompt,
-        search_dirs     = spec.dirs,
-        entry_maker     = make_relative_entry_maker(spec.dirs),
-        attach_mappings = attach,
+        prompt_title         = spec.prompt,
+        search_dirs          = spec.dirs,
+        entry_maker          = make_relative_entry_maker(spec.dirs),
+        attach_mappings      = attach,
+        file_ignore_patterns = filter.to_ignore_patterns(spec.exclude_map),
     })
 end
 

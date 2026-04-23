@@ -1,7 +1,25 @@
 -- lua/vscode-workspace/picker/snacks.lua
 -- snacks.nvim backend for find_files / live_grep / static select.
 
+local filter = require("vscode-workspace.filter")
+
 local M = {}
+
+--- Build a snacks filter function from exclude_map.
+--- snacks calls filter(item) → return false to hide, true to show.
+---@param exclude_map table<string, boolean>
+---@return function|nil
+local function make_snacks_filter(exclude_map)
+    local patterns = filter.to_ignore_patterns(exclude_map)
+    if #patterns == 0 then return nil end
+    return function(item)
+        local fpath = item.file or item.text or ""
+        for _, pat in ipairs(patterns) do
+            if fpath:find(pat) then return false end
+        end
+        return true
+    end
+end
 
 function M.files(spec)
     local snacks = require("snacks")
@@ -9,6 +27,8 @@ function M.files(spec)
         title = spec.prompt,
         dirs  = spec.dirs,
     }
+    local f = make_snacks_filter(spec.exclude_map)
+    if f then opts.filter = f end
     if spec.on_submit then
         opts.confirm = function(p, item)
             p:close()
@@ -35,6 +55,7 @@ function M.files_static(spec)
 end
 
 
+function M.grep(spec)
     require("snacks").picker.grep({
         title = spec.prompt,
         dirs  = spec.dirs,

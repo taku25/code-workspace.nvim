@@ -3,11 +3,15 @@
 
 local M = {}
 
+local path   = require("vscode-workspace.path")
+local filter = require("vscode-workspace.filter")
+
 function M.files(spec)
     local fzf = require("fzf-lua")
     local opts = {
-        prompt      = spec.prompt .. "> ",
-        search_dirs = spec.dirs,
+        prompt              = spec.prompt .. "> ",
+        search_dirs         = spec.dirs,
+        file_ignore_patterns = filter.to_ignore_patterns(spec.exclude_map),
     }
     if spec.on_submit then
         opts.actions = {
@@ -22,12 +26,24 @@ function M.files(spec)
 end
 
 function M.files_static(spec)
-    require("fzf-lua").fzf_exec(spec.items, {
+    local rel = path.workspace_path_display(spec.dirs or {})
+
+    -- Build display_str → absolute_path mapping
+    local display_to_abs = {}
+    local display_items  = {}
+    for _, abs_path in ipairs(spec.items) do
+        local disp = rel({}, abs_path)
+        display_to_abs[disp] = abs_path
+        table.insert(display_items, disp)
+    end
+
+    require("fzf-lua").fzf_exec(display_items, {
         prompt  = spec.prompt .. "> ",
         actions = {
             ["default"] = function(selected)
-                local fpath = selected and selected[1]
-                if fpath then
+                local disp = selected and selected[1]
+                if disp then
+                    local fpath = display_to_abs[disp] or disp
                     if spec.on_submit then spec.on_submit(fpath)
                     else vim.cmd("edit " .. vim.fn.fnameescape(fpath)) end
                 end
@@ -37,6 +53,7 @@ function M.files_static(spec)
 end
 
 
+function M.grep(spec)
     require("fzf-lua").live_grep({
         prompt      = spec.prompt .. "> ",
         search_dirs = spec.dirs,

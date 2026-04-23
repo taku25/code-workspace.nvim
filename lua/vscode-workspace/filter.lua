@@ -109,4 +109,45 @@ function M.make_matcher(exclude_map)
     end
 end
 
+--- Convert a VS Code files.exclude map to a list of Lua patterns
+--- suitable for fzf-lua / telescope `file_ignore_patterns`.
+--- Patterns are matched against the full file path via string.find,
+--- so they work regardless of which underlying scanner (fd/rg/find) the picker uses.
+---
+--- Examples:
+---   "**/*.uasset"            → "%.uasset$"
+---   "**/_INT"                → "[/\\]_INT[/\\]"  and  "[/\\]_INT$"
+---   "**/__ExternalActors__"  → "[/\\]__ExternalActors__[/\\]"  and  "[/\\]__ExternalActors__$"
+---@param exclude_map table<string, boolean>
+---@return string[]  Lua patterns for file_ignore_patterns
+function M.to_ignore_patterns(exclude_map)
+    local patterns = {}
+
+    local function esc(s)
+        return (s:gsub("([%.%+%-%^%$%(%)%[%]%%])", "%%%1"))
+    end
+
+    for glob, enabled in pairs(exclude_map or {}) do
+        if enabled == true then
+            local bare = glob:match("^%*%*/(.+)$") or glob
+            bare = bare:gsub("/%*%*$", ""):gsub("/$", "")
+            if bare == "" then goto continue end
+
+            if bare:find("%*") then
+                -- Wildcard pattern e.g. "*.uasset", "*.png"
+                -- esc() leaves * and ? untouched; convert them to Lua equivalents
+                local converted = esc(bare):gsub("%*", ".*"):gsub("%?", ".")
+                table.insert(patterns, converted .. "$")
+            else
+                -- Exact component name e.g. "_INT", "Collections", "__ExternalActors__"
+                local e = esc(bare)
+                table.insert(patterns, "[/\\]" .. e .. "[/\\]")  -- as parent directory
+                table.insert(patterns, "[/\\]" .. e .. "$")       -- as final component
+            end
+            ::continue::
+        end
+    end
+    return patterns
+end
+
 return M

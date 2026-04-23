@@ -142,7 +142,16 @@ function M.new(buf, ws)
         extra         = { cw_type = "fav_root" },
     })
 
-    local all_roots = { fav_root_node }
+    -- .code-workspace file node (for quick access / editing)
+    local ws_file_node = Tree.Node({
+        text  = vim.fn.fnamemodify(ws.ws_path, ":t"),
+        id    = ws.ws_path,
+        path  = ws.ws_path,
+        type  = "file",
+        extra = { cw_type = "ws_file" },
+    })
+
+    local all_roots = { fav_root_node, ws_file_node }
     for _, folder in ipairs(ws.folders or {}) do
         if path.exists(folder.path) then
             table.insert(all_roots, Tree.Node({

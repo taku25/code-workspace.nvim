@@ -79,6 +79,7 @@ function M.find_files(dirs, opts)
         prompt      = opts.prompt or "CW Files",
         dirs        = dirs,
         is_excluded = opts.is_excluded,
+        exclude_map = opts.exclude_map,
         on_submit   = opts.on_submit,
     })
 end
