@@ -1,0 +1,469 @@
+*vscode-workspace.txt*  Multi-root workspace explorer for .code-workspace files
+
+Author:  taku25 <https://github.com/taku25>
+License: MIT
+
+==============================================================================
+CONTENTS                                          *vscode-workspace-contents*
+
+  1. Introduction .............. |vscode-workspace-intro|
+  2. Requirements .............. |vscode-workspace-requirements|
+  3. Installation .............. |vscode-workspace-installation|
+  4. Setup ...................... |vscode-workspace-setup|
+  5. Commands .................. |vscode-workspace-commands|
+  6. Explorer Keymaps .......... |vscode-workspace-keymaps|
+  7. Configuration ............. |vscode-workspace-config|
+  8. Picker Integration ......... |vscode-workspace-picker|
+  9. Scanner .................... |vscode-workspace-scanner|
+  10. files.exclude .............. |vscode-workspace-exclude|
+  11. Favorites .................. |vscode-workspace-favorites|
+  12. UEFN Projects .............. |vscode-workspace-uefn|
+  13. License .................... |vscode-workspace-license|
+
+==============================================================================
+1. INTRODUCTION                                     *vscode-workspace-intro*
+
+vscode-workspace.nvim lets you open and navigate `.code-workspace` files
+(the same multi-root workspace format used by VS Code) directly in Neovim.
+
+Features:
+- Multi-root tree view — all `folders` entries shown as roots
+- Favorites — bookmark files in-panel, organized into named folders
+- `:CW files` — fuzzy-find files across all workspace folders
+- `:CW grep` — live grep across all workspace folders
+- `files.exclude` — workspace exclusion patterns applied to tree AND picker
+- UEFN detection — auto-detects Verse projects, highlights with ⚡
+- Flexible picker support — telescope / fzf-lua / snacks.nvim / native
+
+==============================================================================
+2. REQUIREMENTS                                *vscode-workspace-requirements*
+
+- Neovim 0.9+
+- nui.nvim            https://github.com/MunifTanjim/nui.nvim  (required)
+- nvim-web-devicons   optional, for file icons
+- telescope.nvim / fzf-lua / snacks.nvim  optional, for picker support
+- fd or rg            optional, for fast file enumeration
+
+==============================================================================
+3. INSTALLATION                               *vscode-workspace-installation*
+
+With lazy.nvim: >lua
+    {
+        "taku25/vscode-workspace.nvim",
+        dependencies = { "MunifTanjim/nui.nvim" },
+        config = function()
+            require("vscode-workspace").setup()
+        end,
+    }
+<
+
+==============================================================================
+4. SETUP                                           *vscode-workspace-setup*
+
+Call `setup()` once during initialization: >lua
+    require("vscode-workspace").setup({
+        -- options (see |vscode-workspace-config|)
+    })
+<
+All options are optional. `setup({})` or `setup()` uses the defaults.
+
+==============================================================================
+5. COMMANDS                                     *vscode-workspace-commands*
+
+All commands start with `:CW`.
+
+:CW open                                                          *:CW-open*
+    Open the explorer panel.
+
+:CW close                                                        *:CW-close*
+    Close the explorer panel.
+
+:CW toggle                                                      *:CW-toggle*
+    Toggle the explorer panel open/closed.
+
+:CW focus                                                        *:CW-focus*
+    Focus the explorer panel (open it if closed).
+
+:CW refresh                                                    *:CW-refresh*
+    Refresh the tree (re-scan directories).
+
+:CW files                                                        *:CW-files*
+    Open a file picker across all workspace folders.
+    Respects `files.exclude` patterns from the workspace settings.
+
+:CW grep                                                          *:CW-grep*
+    Open a live-grep picker across all workspace folders.
+
+:CW favorite_current                                  *:CW-favorite_current*
+    Toggle the current buffer in Favorites.
+
+:CW add_favorites                                        *:CW-add_favorites*
+    Open a file picker to add files to Favorites.
+
+:CW favorites_files                                    *:CW-favorites_files*
+    Open Favorites in a picker. Paths are shown workspace-relative.
+
+==============================================================================
+6. EXPLORER KEYMAPS                               *vscode-workspace-keymaps*
+
+These keys are active inside the explorer buffer.
+
+------------------------------------------------------------------------------
+Navigation / opening~
+
+  <CR> / o       Open file or expand/collapse directory
+  s              Open in vertical split
+  i              Open in horizontal split
+  <Tab>          (tab_next) reserved for future tab navigation
+  <S-Tab>        (tab_prev) reserved
+  R              Refresh tree
+  q              Close explorer
+
+------------------------------------------------------------------------------
+Search~
+
+  f              Find files (`:CW files`)
+  g              Live grep (`:CW grep`)
+
+------------------------------------------------------------------------------
+Favorites~
+
+  b              Toggle file under cursor in Favorites
+  <C-N>          Add a new Favorites folder
+  <C-r>          Rename Favorites folder under cursor
+  <C-d>          Remove Favorites folder (files moved to Default)
+  m              Move file under cursor to another Favorites folder
+
+------------------------------------------------------------------------------
+File system~
+
+  a              Create new file in directory under cursor
+  A              Create new directory in directory under cursor
+  d              Delete file or directory under cursor (with confirmation)
+  r              Rename file or directory under cursor
+
+All keymaps are configurable via `keymaps` in |vscode-workspace-config|.
+
+==============================================================================
+7. CONFIGURATION                                  *vscode-workspace-config*
+
+Pass a table to `setup()`. All keys are optional.
+
+>lua
+    require("vscode-workspace").setup({
+
+        -- ── Window ──────────────────────────────────────────────────────────
+        window = {
+            position = "left",   -- "left" | "right"
+            width    = 35,
+        },
+
+        -- ── Tree ────────────────────────────────────────────────────────────
+        -- Directory names always hidden regardless of files.exclude
+        ignore_dirs = {
+            ".git", ".vs", ".vscode", ".idea",
+            "node_modules", "__pycache__",
+        },
+
+        -- ── Icons (requires a Nerd Font) ─────────────────────────────────────
+        icon = {
+            expander_open   = "",
+            expander_closed = "",
+            folder_closed   = "",
+            folder_open     = "",
+            default_file    = "",
+            workspace       = "󰙅",
+            uefn            = "⚡",
+        },
+
+        -- ── Highlights ──────────────────────────────────────────────────────
+        highlights = {
+            CWDirectoryIcon = { link = "Directory" },
+            CWFileIcon      = { link = "Comment" },
+            CWFileName      = { link = "Normal" },
+            CWIndentMarker  = { link = "NonText" },
+            CWRootName      = { link = "Title" },
+            CWTabActive     = { link = "String" },
+            CWTabInactive   = { link = "Normal" },
+            CWTabSeparator  = { link = "NonText" },
+            CWModifiedIcon  = { link = "Special" },
+        },
+
+        -- ── Keymaps ──────────────────────────────────────────────────────────
+        keymaps = {
+            close           = { "q" },
+            open            = { "<CR>", "o" },
+            vsplit          = "s",
+            split           = "i",
+            refresh         = "R",
+            toggle_favorite = "b",
+            fav_add_folder    = "<C-N>",
+            fav_rename_folder = "<C-r>",
+            fav_remove_folder = "<C-d>",
+            fav_move          = "m",
+            find_files        = "f",
+            live_grep         = "g",
+            file_create       = "a",
+            dir_create        = "A",
+            file_delete       = "d",
+            file_rename       = "r",
+        },
+
+        -- ── Picker ───────────────────────────────────────────────────────────
+        -- See |vscode-workspace-picker| for full documentation.
+        picker = nil,            -- nil = auto-detect
+        picker_function = nil,   -- nil = use built-in backends
+
+        -- ── Scanner ──────────────────────────────────────────────────────────
+        -- See |vscode-workspace-scanner| for full documentation.
+        scanner = {
+            files = { cmd = nil, args = nil },
+            grep  = { cmd = nil, args = nil },
+        },
+    })
+<
+
+==============================================================================
+8. PICKER INTEGRATION                             *vscode-workspace-picker*
+
+Pickers are used for `:CW files`, `:CW grep`, `:CW favorites_files`, and
+the add-favorites flow.
+
+------------------------------------------------------------------------------
+Auto-detection~                              *vscode-workspace-picker-auto*
+
+When `picker` is not set, the backend is chosen in this order:
+
+  Priority  Backend       Plugin
+  --------  ----------    ----------------------------------------
+  1         telescope     nvim-telescope/telescope.nvim
+  2         fzf-lua       ibhagwan/fzf-lua
+  3         snacks        folke/snacks.nvim
+  4         native        vim.ui.select  (built-in, no extra deps)
+
+All built-in backends apply `files.exclude` patterns via
+`file_ignore_patterns` so the picker scanner is never overridden.
+
+------------------------------------------------------------------------------
+Explicit backend~                        *vscode-workspace-picker-explicit*
+
+>lua
+    require("vscode-workspace").setup({
+        picker = "fzf-lua",
+    })
+<
+
+------------------------------------------------------------------------------
+Custom picker function~                   *vscode-workspace-picker-custom*
+
+Set `picker_function` to take full control. The function receives a
+**spec** table and must open a picker, calling `spec.on_submit(item)`
+when the user confirms.
+
+Spec fields:
+  `spec.type`       `"files"` | `"grep"` | `"files_static"` | `"static"`
+  `spec.prompt`     string — picker title
+  `spec.dirs`       `string[]` — root dirs to search  (files / grep)
+  `spec.items`      `string[]` — pre-built list       (files_static / static)
+  `spec.exclude_map` `table<string,boolean>` — raw VS Code files.exclude map
+  `spec.on_submit`  `fun(item: string)` — call with the selected path/item
+
+>lua
+    require("vscode-workspace").setup({
+        picker_function = function(spec)
+            if spec.type == "files" then
+                require("telescope.builtin").find_files({
+                    prompt_title = spec.prompt,
+                    search_dirs  = spec.dirs,
+                })
+            elseif spec.type == "grep" then
+                require("telescope.builtin").live_grep({
+                    prompt_title = spec.prompt,
+                    search_dirs  = spec.dirs,
+                })
+            else
+                vim.ui.select(spec.items, { prompt = spec.prompt },
+                    function(choice)
+                        if choice then spec.on_submit(choice) end
+                    end)
+            end
+        end,
+    })
+<
+
+==============================================================================
+9. SCANNER                                       *vscode-workspace-scanner*
+
+`:CW files` and the add-favorites picker enumerate files in your workspace.
+The scanner is separate from the picker backend and runs regardless of which
+picker is active.
+
+------------------------------------------------------------------------------
+File scanner tiers~
+
+  Priority  Tool           .gitignore respected
+  --------  ----------     --------------------
+  1         fd / fdfind    yes
+  2         rg --files     yes
+  3         Lua BFS        no  (warns you)
+
+------------------------------------------------------------------------------
+Configuring file enumeration~         *vscode-workspace-scanner-files*
+
+>lua
+    scanner = {
+        files = {
+            -- cmd: nil = auto-detect | string = tool path | false = Lua only
+            cmd  = nil,
+            -- args: nil = built-in defaults | table = exact args
+            --   (workspace dirs appended automatically)
+            args = nil,
+        },
+    }
+<
+
+Built-in defaults:
+
+  cmd        args
+  ---------  --------------------------------------------------
+  fd/fdfind  --type f --hidden --follow --color never --absolute-path
+  rg         --files --hidden --follow --color never --glob !.git
+
+Examples: >lua
+    -- force fd, ignore .gitignore
+    scanner = { files = { cmd = "fd",
+        args = { "--type", "f", "--no-ignore" } } }
+
+    -- absolute path (e.g. Scoop on Windows)
+    scanner = { files = { cmd = "C:/Users/you/scoop/shims/fd.exe" } }
+
+    -- disable external tools, use pure-Lua BFS
+    scanner = { files = { cmd = false } }
+<
+
+------------------------------------------------------------------------------
+Configuring grep~                         *vscode-workspace-scanner-grep*
+
+>lua
+    scanner = {
+        grep = {
+            -- cmd: nil = auto-detect (rg > grep) | string | false
+            cmd  = nil,
+            args = nil,
+        },
+    }
+<
+
+Built-in defaults:
+
+  cmd   args
+  ----  ----------------------------
+  rg    --hidden --follow --smart-case
+  grep  -rn
+
+Examples: >lua
+    -- case-sensitive ripgrep
+    scanner = { grep = { cmd = "rg",
+        args = { "--hidden", "--follow", "--case-sensitive" } } }
+
+    -- system grep, Lua files only
+    scanner = { grep = { cmd = "grep",
+        args = { "-rn", "--include=*.lua" } } }
+<
+
+==============================================================================
+10. FILES.EXCLUDE                                *vscode-workspace-exclude*
+
+If your `.code-workspace` has a `settings."files.exclude"` block, those
+patterns are applied automatically:
+
+  - **Tree view** — excluded files/directories are hidden while scanning
+  - **`:CW files` picker** — results filtered via `file_ignore_patterns`
+    (works with any picker backend; the backend's own scanner is untouched)
+
+Example workspace settings: >json
+    "settings": {
+        "files.exclude": {
+            "**/*.uasset": true,
+            "**/*.umap":   true,
+            "Intermediate": true,
+            "_INT": true
+        }
+    }
+<
+
+Only entries set to `true` are applied. `false` entries are ignored.
+
+Supported glob syntax:
+
+  Pattern              Behaviour
+  ----------------     ----------------------------------------
+  `**/*.ext`           hide all files with extension `.ext`
+  `**/_INT`            hide any path component named `_INT`
+  `_INT`               same as above (leading `**/` is optional)
+  `**/dir/**`          hide directory `dir` and its contents
+
+==============================================================================
+11. FAVORITES                                   *vscode-workspace-favorites*
+
+Favorites are shown at the top of the explorer tree under a ★ node.
+They are organized into named folders and persisted per workspace under: >
+    {stdpath("data")}/code-workspace/
+<
+
+Adding / removing~
+
+  b                  Toggle file under cursor in Favorites
+  :CW favorite_current   Toggle current buffer
+  :CW add_favorites      Pick files to add via picker
+
+Favorites folders~
+
+  <C-N>    Add new folder
+  <C-r>    Rename folder under cursor
+  <C-d>    Remove folder (files moved to Default)
+  m        Move file under cursor to another folder
+
+Opening Favorites~
+
+  :CW favorites_files    Open Favorites in a picker
+                         Paths shown workspace-relative for easy navigation.
+
+==============================================================================
+12. UEFN PROJECTS                                  *vscode-workspace-uefn*
+
+UEFN (Unreal Editor for Fortnite) workspaces are auto-detected by the
+presence of `/Verse.org`, `/Fortnite.com`, or similar `/domain.tld`-style
+folder names in the workspace.
+
+- UEFN folder roots are highlighted with the ⚡ icon
+- `verse_project_root` is resolved from the `/Verse.org` entry and exposed
+  via the workspace object returned by `require("vscode-workspace.workspace").find()`
+
+==============================================================================
+LICENSE                                          *vscode-workspace-license*
+
+MIT License
+
+Copyright (c) 2026 taku25
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+vim:ft=help:tw=78:ts=8:noet:

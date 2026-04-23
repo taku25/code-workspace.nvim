@@ -30,10 +30,10 @@ Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fo
 ```lua
 -- lazy.nvim
 {
-    "taku25/code-workspace.nvim",
+    "taku25/vscode-workspace.nvim",
     dependencies = { "MunifTanjim/nui.nvim" },
     config = function()
-        require("CW").setup()
+        require("vscode-workspace").setup()
     end,
 }
 ```
@@ -89,7 +89,7 @@ Default keymaps inside the explorer buffer:
 ## Configuration
 
 ```lua
-require("CW").setup({
+require("vscode-workspace").setup({
     window = {
         position = "left",   -- "left" | "right"
         width    = 35,
@@ -190,7 +190,7 @@ When `picker` is not set, the plugin auto-detects in this order:
 ### Selecting a backend explicitly
 
 ```lua
-require("CW").setup({
+require("vscode-workspace").setup({
     picker = "fzf-lua",   -- skip auto-detect, always use fzf-lua
 })
 ```
@@ -201,12 +201,13 @@ Set `picker_function` to take complete control. The function receives a **spec t
 open a picker, then call `spec.on_submit(selected)` when the user confirms:
 
 ```lua
-require("CW").setup({
+require("vscode-workspace").setup({
     picker_function = function(spec)
-        -- spec.type      "files" | "grep" | "static"
+        -- spec.type      "files" | "grep" | "files_static" | "static"
         -- spec.prompt    string — prompt / title for the picker
         -- spec.dirs      string[] — root dirs to search (files / grep)
-        -- spec.items     string[] — pre-built list of items (static)
+        -- spec.items     string[] — pre-built list of items (files_static / static)
+        -- spec.exclude_map  table<string,boolean> — raw files.exclude map
         -- spec.on_submit function(item) — call this with the chosen item
 
         if spec.type == "files" then
@@ -267,7 +268,7 @@ The scanner tier is chosen automatically:
 All options live under `scanner.files`:
 
 ```lua
-require("CW").setup({
+require("vscode-workspace").setup({
     scanner = {
         files = {
             -- cmd: which tool to use for file enumeration
@@ -309,7 +310,7 @@ scanner = { files = { cmd = false } }
 `:CW grep` uses `rg` (ripgrep) by default. Customize via `scanner.grep`:
 
 ```lua
-require("CW").setup({
+require("vscode-workspace").setup({
     scanner = {
         grep = {
             -- cmd: which tool to use for live grep
@@ -345,12 +346,14 @@ scanner = { grep = { cmd = "grep", args = { "-rn", "--include=*.lua" } } }
 
 
 
+## Favorites
+
 Favorites are displayed at the top of the explorer tree (★ Favorites node) mixed with the workspace folders — no separate tab.
 
 - **`b`** in the explorer — toggle the file under cursor
 - **`:CW favorite_current`** — toggle the current buffer
 - **`:CW add_favorites`** — open a picker to add files
-- **`:CW favorites_files`** — open Favorites in a picker
+- **`:CW favorites_files`** — open Favorites in a picker (paths shown workspace-relative)
 
 Favorites are persisted per workspace under `vim.fn.stdpath("data")/code-workspace/`.
 
@@ -371,12 +374,40 @@ automatically applied to the tree view and file search:
 
 Only entries set to `true` are applied. Entries set to `false` are ignored.
 
+The patterns are applied to:
+- **Tree view** — excluded files/directories are hidden during scanning
+- **`:CW files` picker** — results filtered post-scan via `file_ignore_patterns`, regardless of which picker backend or scanner tool is used
+
 ## UEFN Projects
 
 UEFN projects are auto-detected by the presence of `/Verse.org`, `/Fortnite.com`, or similar
 `/domain.tld`-style folder names in the workspace. The `verse_project_root` is resolved from the
 `/Verse.org` folder entry and exposed via `require("CW.workspace").find()`.
 
+## Documentation
+
+Full reference available inside Neovim: `:help vscode-workspace`
+
 ## License
 
-MIT © [taku25](https://github.com/taku25)
+MIT License
+
+Copyright (c) 2026 taku25
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
