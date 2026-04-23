@@ -75,13 +75,15 @@ local function build_fav_nodes(fav_data)
         end
     end
 
-    local function make_file_node(item)
+    local function make_item_node(item)
+        local is_dir = item.is_dir or (item.path and vim.fn.isdirectory(item.path) == 1)
         return Tree.Node({
-            text  = item.name or path.basename(item.path),
-            id    = "fav_file:" .. item.path,
-            path  = item.path,
-            type  = "file",
-            extra = { cw_type = "fav_file" },
+            text          = item.name or path.basename(item.path),
+            id            = "fav_item:" .. item.path,
+            path          = item.path,
+            type          = is_dir and "directory" or "file",
+            _has_children = is_dir and true or false,
+            extra         = { cw_type = "fav_item" },
         })
     end
 
@@ -91,7 +93,7 @@ local function build_fav_nodes(fav_data)
         for _, fname in ipairs(folder_order) do
             local fd = folder_map[fname]
             if fd.parent == parent_name then
-                local file_nodes = vim.tbl_map(make_file_node, fd.files)
+                local file_nodes = vim.tbl_map(make_item_node, fd.files)
                 local sub_nodes  = make_folder_nodes(fname)
                 local all_ch = {}
                 vim.list_extend(all_ch, sub_nodes)
@@ -109,10 +111,10 @@ local function build_fav_nodes(fav_data)
         return nodes
     end
 
-    -- Top-level: root folders first, then root-level files
+    -- Top-level: root folders first, then root-level items
     local top = make_folder_nodes(nil)
     for _, item in ipairs(root_files) do
-        table.insert(top, make_file_node(item))
+        table.insert(top, make_item_node(item))
     end
     return top
 end
@@ -306,12 +308,14 @@ function M.new(buf, ws)
             end
         end
 
-        -- Adding: show folder picker if folders exist
+        -- Adding: detect if it's a directory
+        local is_dir = vim.fn.isdirectory(file_path) == 1
         local folder_paths = get_folder_paths()
         local function do_add(folder_name)
             table.insert(fav_data, {
                 path     = file_path,
                 name     = path.basename(file_path),
+                is_dir   = is_dir or nil,   -- store only when true to keep JSON clean
                 folder   = folder_name,
                 added_at = os.time(),
             })
@@ -493,7 +497,7 @@ function M.new(buf, ws)
         if not node then return end
         local ct = node.extra and node.extra.cw_type
         local is_fav_folder_node = (ct == "fav_folder")
-        local is_fav_file_node   = false
+        local is_fav_item_node   = false
         local norm = node.path and path.normalize(node.path)
 
         if not is_fav_folder_node then
@@ -503,12 +507,12 @@ function M.new(buf, ws)
             end
             for _, item in ipairs(fav_data) do
                 if not item.is_folder and path.normalize(item.path) == norm then
-                    is_fav_file_node = true; break
+                    is_fav_item_node = true; break
                 end
             end
         end
 
-        if not is_fav_folder_node and not is_fav_file_node then
+        if not is_fav_folder_node and not is_fav_item_node then
             vim.notify("[CW] Cursor is not on a favorites item or folder", vim.log.levels.WARN)
             return
         end

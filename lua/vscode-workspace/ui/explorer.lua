@@ -100,9 +100,11 @@ local function setup_keymaps(buf)
 
     map(km.toggle_favorite, function()
         if not state.view then return end
-        -- Try cursor node first; fall back to alternate buffer
         local node = state.view.tree and state.view.tree:get_node()
-        local file_path = (node and node.path and node.type == "file")
+        -- Allow files and real directories (not workspace roots or fav virtual nodes)
+        local cw_type = node and node.extra and node.extra.cw_type
+        local is_real = cw_type ~= "root" and cw_type ~= "fav_root" and cw_type ~= "fav_folder"
+        local file_path = (node and node.path and is_real)
                           and node.path or vim.fn.expand("#:p")
         if file_path and file_path ~= "" then
             state.view.toggle_favorite(file_path, function(added)
