@@ -14,8 +14,8 @@ local HARD_SKIP = { [".git"] = true, [".vs"] = true, ["node_modules"] = true }
 -- ── Default argument sets ─────────────────────────────────────────────────────
 
 local DEFAULT_FILES_ARGS = {
-    fd     = { "--type", "f", "--hidden", "--follow", "--color", "never" },
-    fdfind = { "--type", "f", "--hidden", "--follow", "--color", "never" },
+    fd     = { "--type", "f", "--hidden", "--follow", "--color", "never", "--absolute-path" },
+    fdfind = { "--type", "f", "--hidden", "--follow", "--color", "never", "--absolute-path" },
     rg     = { "--files", "--hidden", "--follow", "--color", "never", "--glob", "!.git" },
 }
 
@@ -45,9 +45,14 @@ local function resolve_files()
 
     local function try(cmd)
         if cmd and vim.fn.executable(cmd) == 1 then
+            -- Use full path for jobstart (important on Windows where PATH may differ)
+            local full = vim.fn.exepath(cmd)
+            local resolved_cmd = (full and full ~= "") and full or cmd
             local base = cmd:match("([^/\\]+)$") or cmd
+            -- Strip .exe suffix for arg lookup
+            base = base:gsub("%.exe$", "")
             local args = sc.args or DEFAULT_FILES_ARGS[base] or DEFAULT_FILES_ARGS["fd"]
-            _resolved_files = { cmd = cmd, args = vim.deepcopy(args) }
+            _resolved_files = { cmd = resolved_cmd, args = vim.deepcopy(args) }
             return true
         end
     end
@@ -89,10 +94,13 @@ local function resolve_grep()
 
     local function try(cmd)
         if cmd and vim.fn.executable(cmd) == 1 then
+            local full = vim.fn.exepath(cmd)
+            local resolved_cmd = (full and full ~= "") and full or cmd
             local base = cmd:match("([^/\\]+)$") or cmd
+            base = base:gsub("%.exe$", "")
             local args = sc.args or DEFAULT_GREP_ARGS[base] or DEFAULT_GREP_ARGS["grep"]
             _resolved_grep = {
-                cmd   = cmd,
+                cmd   = resolved_cmd,
                 args  = vim.deepcopy(args),
                 is_rg = (base == "rg"),
             }
@@ -129,6 +137,33 @@ function M.backend()
     return r.cmd:match("([^/\\]+)$") or r.cmd
 end
 
+--- Build a jobstart-safe argv for the given resolved tool on Windows.
+--- On Windows, .bat shims (e.g. scoop) cannot be launched directly by
+--- vim.fn.jobstart (which uses CreateProcess without a shell).  Wrapping in
+--- "cmd.exe /C" lets cmd.exe resolve the .bat through PATHEXT.
+---@param r          { cmd:string, args:string[] }
+---@param extra_args string[]   directories or other trailing args
+---@return string[]
+local function build_argv(r, extra_args)
+    local base
+    if vim.fn.has("win32") == 1 then
+        local full = vim.fn.exepath(r.cmd)
+        if full ~= "" and full:lower():match("%.bat$") then
+            -- .bat shim – must go through cmd.exe
+            base = { "cmd.exe", "/C", r.cmd }
+        elseif full ~= "" then
+            base = { full }
+        else
+            base = { r.cmd }
+        end
+    else
+        base = { r.cmd }
+    end
+    vim.list_extend(base, r.args)
+    vim.list_extend(base, extra_args)
+    return base
+end
+
 --- Returns the full command array ready for jobstart / new_oneshot_job.
 --- Returns nil when no external tool is available (use M.collect fallback).
 ---@param dirs string[]
@@ -136,10 +171,7 @@ end
 function M.files_cmd(dirs)
     local r = resolve_files()
     if not r.cmd then return nil end
-    local argv = { r.cmd }
-    vim.list_extend(argv, r.args)
-    for _, d in ipairs(dirs) do table.insert(argv, d) end
-    return argv
+    return build_argv(r, dirs)
 end
 
 --- Resolved grep config for picker backends.
@@ -151,11 +183,10 @@ end
 -- ── Job-based async scan (fd / rg) ───────────────────────────────────────────
 
 local function scan_with_job(r, dirs, on_chunk, on_done)
-    local args = vim.deepcopy(r.args)
-    for _, d in ipairs(dirs) do table.insert(args, d) end
-    table.insert(args, 1, r.cmd)
+    local argv = build_argv(r, dirs)
 
-    vim.fn.jobstart(args, {
+    local stderr_buf = {}
+    local job_id = vim.fn.jobstart(argv, {
         stdout_buffered = false,
         on_stdout = function(_, data)
             if not data then return end
@@ -168,12 +199,31 @@ local function scan_with_job(r, dirs, on_chunk, on_done)
                 vim.schedule(function() on_chunk(chunk) end)
             end
         end,
-        on_exit = function()
+        on_stderr = function(_, data)
+            if data then
+                for _, line in ipairs(data) do
+                    if line and line ~= "" then table.insert(stderr_buf, line) end
+                end
+            end
+        end,
+        on_exit = function(_, code)
             vim.schedule(function()
+                if code ~= 0 and #stderr_buf > 0 then
+                    vim.notify("[CW scanner] error (exit " .. code .. "): "
+                        .. table.concat(stderr_buf, " | "), vim.log.levels.ERROR)
+                elseif code ~= 0 then
+                    vim.notify("[CW scanner] job exited with code " .. code
+                        .. "  cmd: " .. argv[1], vim.log.levels.WARN)
+                end
                 if on_done then on_done() end
             end)
         end,
     })
+    if job_id <= 0 then
+        vim.notify("[CW scanner] failed to start job (id=" .. job_id
+            .. ") for: " .. table.concat(argv, " "):sub(1, 120), vim.log.levels.ERROR)
+        if on_done then vim.schedule(on_done) end
+    end
 end
 
 -- ── Pure-Lua BFS fallback ─────────────────────────────────────────────────────
