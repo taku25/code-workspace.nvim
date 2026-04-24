@@ -195,6 +195,7 @@ function M.open(opts)
             return
         end
         state.ws = ws
+        require("vscode-workspace.lsp").setup(ws)
 
         local conf = get_conf()
         state.split = Split({
