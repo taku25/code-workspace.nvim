@@ -10,6 +10,21 @@ local function get_conf()
     return require("vscode-workspace.config").get()
 end
 
+--- Return icon + highlight for a directory/folder node, with devicons fallback.
+---@param name string  display name of the node
+---@param is_expanded boolean
+---@param icons table  config icon table
+---@return string, string  icon_text, icon_hl
+local function dir_icon(name, is_expanded, icons)
+    if has_devicons then
+        local d_icon, d_hl = devicons.get_icon(name, nil, { default = false })
+        if d_icon then
+            return d_icon .. " ", d_hl or "CWDirectoryIcon"
+        end
+    end
+    return (is_expanded and icons.folder_open or icons.folder_closed) .. " ", "CWDirectoryIcon"
+end
+
 --- Render a tree node into a nui.Line.
 ---@param node table  nui.tree Node with fields: text, type, _has_children, path, extra
 ---@return NuiLine
@@ -54,38 +69,12 @@ function M.prepare_node(node)
             icon_hl   = "CWRootName"
         end
     elseif node.type == "directory" then
-        -- Try devicons for well-known directory names (e.g. ".git", "src", "node_modules")
-        if has_devicons then
-            local d_icon, d_hl = devicons.get_icon(node.text, nil, { default = false })
-            if d_icon then
-                icon_text = d_icon .. " "
-                icon_hl   = d_hl or "CWDirectoryIcon"
-            else
-                icon_text = (node:is_expanded() and icons.folder_open or icons.folder_closed) .. " "
-                icon_hl   = "CWDirectoryIcon"
-            end
-        else
-            icon_text = (node:is_expanded() and icons.folder_open or icons.folder_closed) .. " "
-            icon_hl   = "CWDirectoryIcon"
-        end
+        icon_text, icon_hl = dir_icon(node.text, node:is_expanded(), icons)
     elseif extra_type == "fav_root" then
         icon_text = "★ "
         icon_hl   = "CWRootName"
     elseif extra_type == "fav_folder" then
-        -- Use devicons for well-known names, otherwise folder open/closed icons
-        if has_devicons then
-            local d_icon, d_hl = devicons.get_icon(node.text, nil, { default = false })
-            if d_icon then
-                icon_text = d_icon .. " "
-                icon_hl   = d_hl or "CWDirectoryIcon"
-            else
-                icon_text = (node:is_expanded() and icons.folder_open or icons.folder_closed) .. " "
-                icon_hl   = "CWDirectoryIcon"
-            end
-        else
-            icon_text = (node:is_expanded() and icons.folder_open or icons.folder_closed) .. " "
-            icon_hl   = "CWDirectoryIcon"
-        end
+        icon_text, icon_hl = dir_icon(node.text, node:is_expanded(), icons)
     elseif node.path then
         if has_devicons then
             local ext    = node.path:match("%.([^./\\]+)$") or ""

@@ -85,7 +85,6 @@ end
 ---@param dirs string[]  workspace folder paths
 ---@return function  path_display(opts, path) -> string
 function M.workspace_path_display(dirs)
-    local is_win = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
     local prefixes = {}
     for _, d in ipairs(dirs) do
         local p = vim.fs.normalize(d)

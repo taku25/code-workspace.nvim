@@ -45,7 +45,7 @@ Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fo
 | `:CW open` | Open the explorer panel |
 | `:CW close` | Close the explorer panel |
 | `:CW toggle` | Toggle the explorer panel |
-| `:CW focus` | Focus the current file in the tree |
+| `:CW focus` | Focus the explorer panel |
 | `:CW refresh` | Refresh the tree |
 | `:CW files` | Find files across all workspace folders |
 | `:CW grep` | Live grep across all workspace folders |
@@ -140,7 +140,7 @@ require("vscode-workspace").setup({
     -- Full override: receive a spec table and open your own picker.
     -- When set, `picker` is ignored.
     -- picker_function = function(spec)
-    --     -- spec.type    = "files" | "grep" | "static"
+    --     -- spec.type    = "files" | "grep" | "files_static" | "static"
     --     -- spec.prompt  = string
     --     -- spec.dirs    = string[]          (files / grep only)
     --     -- spec.items   = string[]          (static only)
@@ -355,7 +355,7 @@ Favorites are displayed at the top of the explorer tree (★ Favorites node) mix
 - **`:CW add_favorites`** — open a picker to add files
 - **`:CW favorites_files`** — open Favorites in a picker (paths shown workspace-relative)
 
-Favorites are persisted per workspace under `vim.fn.stdpath("data")/code-workspace/`.
+Favorites are persisted per workspace under `vim.fn.stdpath("cache")/vscode-workspace/`.
 
 ## `files.exclude` Support
 
@@ -382,7 +382,7 @@ The patterns are applied to:
 
 UEFN projects are auto-detected by the presence of `/Verse.org`, `/Fortnite.com`, or similar
 `/domain.tld`-style folder names in the workspace. The `verse_project_root` is resolved from the
-`/Verse.org` folder entry and exposed via `require("CW.workspace").find()`.
+`/Verse.org` folder entry and exposed via `require("vscode-workspace.workspace").find()`.
 
 ## Documentation
 
