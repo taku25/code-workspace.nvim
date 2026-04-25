@@ -13,6 +13,42 @@ local M = {}
 
 local HARD_IGNORE = { [".git"] = true, [".vs"] = true }
 
+-- ── Module-level clipboard (shared within session) ────────────────────────────
+-- { path=string, op="copy"|"cut", name=string }
+local clipboard = nil
+
+-- ── File copy utilities ───────────────────────────────────────────────────────
+
+local function copy_file_raw(src, dst)
+    local inf = io.open(src, "rb")
+    if not inf then return false end
+    local data = inf:read("*a")
+    inf:close()
+    local outf = io.open(dst, "wb")
+    if not outf then return false end
+    outf:write(data)
+    outf:close()
+    return true
+end
+
+local function copy_dir_recursive(src, dst)
+    if vim.fn.mkdir(dst, "p") == 0 then return false end
+    local handle = vim.loop.fs_scandir(src)
+    if not handle then return false end
+    while true do
+        local name, ftype = vim.loop.fs_scandir_next(handle)
+        if not name then break end
+        local s = path.join(src, name)
+        local d = path.join(dst, name)
+        if ftype == "directory" then
+            if not copy_dir_recursive(s, d) then return false end
+        else
+            if not copy_file_raw(s, d) then return false end
+        end
+    end
+    return true
+end
+
 -- ── Filesystem scanner ────────────────────────────────────────────────────────
 
 local function scan_dir(dir_path, is_excluded, ignore_dirs)
@@ -771,6 +807,88 @@ function M.new(buf, ws)
                 vim.notify("[CW] Rename failed: " .. (err or "unknown"), vim.log.levels.ERROR)
             end
         end)
+    end
+
+    -- ── File copy / cut / paste ───────────────────────────────────────────────
+
+    local VIRTUAL_TYPES = { root=true, fav_root=true, fav_folder=true, recent_root=true }
+
+    function view.copy_node(node)
+        if not node or not node.path then return end
+        if VIRTUAL_TYPES[node.extra and node.extra.cw_type] then
+            vim.notify("[CW] Cannot copy virtual nodes", vim.log.levels.WARN)
+            return
+        end
+        clipboard = { path = node.path, op = "copy", name = path.basename(node.path) }
+        vim.notify("[CW] Copied: " .. clipboard.name, vim.log.levels.INFO)
+    end
+
+    function view.cut_node(node)
+        if not node or not node.path then return end
+        if VIRTUAL_TYPES[node.extra and node.extra.cw_type] then
+            vim.notify("[CW] Cannot cut virtual nodes", vim.log.levels.WARN)
+            return
+        end
+        clipboard = { path = node.path, op = "cut", name = path.basename(node.path) }
+        vim.notify("[CW] Cut: " .. clipboard.name, vim.log.levels.INFO)
+    end
+
+    function view.paste_node(node)
+        if not clipboard then
+            vim.notify("[CW] Clipboard is empty. Use y (copy) or x (cut) first.", vim.log.levels.WARN)
+            return
+        end
+        local target_dir = get_target_dir(node)
+        if not target_dir then
+            vim.notify("[CW] Place cursor on a directory or file to paste here", vim.log.levels.WARN)
+            return
+        end
+
+        -- Check source still exists
+        local stat = vim.loop.fs_stat(clipboard.path)
+        if not stat then
+            vim.notify("[CW] Source no longer exists: " .. clipboard.name, vim.log.levels.ERROR)
+            clipboard = nil
+            return
+        end
+
+        -- Resolve destination, avoiding same-location no-op for cut
+        local dst = path.join(target_dir, clipboard.name)
+        if clipboard.op == "cut" and path.equal(clipboard.path, dst) then
+            vim.notify("[CW] Already in this directory", vim.log.levels.WARN)
+            return
+        end
+
+        -- Handle name conflict: append _copy before extension
+        if vim.loop.fs_stat(dst) then
+            local base, ext = clipboard.name:match("^(.+)(%.[^%.]+)$")
+            if base then
+                dst = path.join(target_dir, base .. "_copy" .. ext)
+            else
+                dst = path.join(target_dir, clipboard.name .. "_copy")
+            end
+        end
+
+        local ok = false
+        if stat.type == "directory" then
+            ok = copy_dir_recursive(clipboard.path, dst)
+            if ok and clipboard.op == "cut" then
+                vim.fn.delete(clipboard.path, "rf")
+            end
+        else
+            ok = copy_file_raw(clipboard.path, dst)
+            if ok and clipboard.op == "cut" then
+                vim.fn.delete(clipboard.path)
+            end
+        end
+
+        if ok then
+            if clipboard.op == "cut" then clipboard = nil end  -- clear after successful cut
+            view.refresh()
+            vim.notify("[CW] Pasted: " .. path.basename(dst), vim.log.levels.INFO)
+        else
+            vim.notify("[CW] Paste failed", vim.log.levels.ERROR)
+        end
     end
 
     tree:render()

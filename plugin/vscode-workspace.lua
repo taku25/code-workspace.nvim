@@ -31,6 +31,10 @@ local subcommands = {
         desc    = "Open Favorites in picker",
         handler = function() require("vscode-workspace.api").favorites_files() end,
     },
+    recent = {
+        desc    = "Open recent files for current workspace in picker",
+        handler = function() require("vscode-workspace.api").recent_files() end,
+    },
 }
 
 vim.api.nvim_create_user_command("CW", function(args)

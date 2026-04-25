@@ -21,5 +21,6 @@ function M.grep(ws)    require("vscode-workspace.cmd.work_grep").execute(ws or c
 function M.favorite_current()   require("vscode-workspace.cmd.favorite_current").execute() end
 function M.add_favorites()      require("vscode-workspace.cmd.add_favorites").execute() end
 function M.favorites_files()    require("vscode-workspace.cmd.favorites_files").execute() end
+function M.recent_files()       require("vscode-workspace.cmd.recent_files").execute() end
 
 return M

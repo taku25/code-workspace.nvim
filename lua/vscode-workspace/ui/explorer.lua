@@ -178,6 +178,24 @@ local function setup_keymaps(buf)
         state.view.rename_node(node)
     end)
 
+    map(km.file_copy, function()
+        if not state.view then return end
+        local node = state.view.tree and state.view.tree:get_node()
+        state.view.copy_node(node)
+    end)
+
+    map(km.file_cut, function()
+        if not state.view then return end
+        local node = state.view.tree and state.view.tree:get_node()
+        state.view.cut_node(node)
+    end)
+
+    map(km.file_paste, function()
+        if not state.view then return end
+        local node = state.view.tree and state.view.tree:get_node()
+        state.view.paste_node(node)
+    end)
+
     map(km.fav_set_icon, function()
         if not state.view then return end
         local node = state.view.tree and state.view.tree:get_node()

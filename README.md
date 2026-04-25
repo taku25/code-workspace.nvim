@@ -53,6 +53,7 @@ Works with any `.code-workspace` project, including **UEFN (Unreal Editor for Fo
 | `:CW favorite_current` | Toggle current buffer in Favorites |
 | `:CW add_favorites` | Add files to Favorites via picker |
 | `:CW favorites_files` | Open Favorites in picker |
+| `:CW recent` | Open recent files for current workspace in picker |
 
 ## Explorer Keymaps
 
@@ -88,6 +89,9 @@ Default keymaps inside the explorer buffer:
 | `A` | Create new directory in directory under cursor |
 | `d` | Delete file / directory under cursor (with confirmation) |
 | `r` | Rename file / directory under cursor |
+| `y` | Copy file / directory under cursor to clipboard |
+| `x` | Cut file / directory under cursor to clipboard |
+| `p` | Paste clipboard contents into directory under cursor |
 
 ## Configuration
 
@@ -136,6 +140,9 @@ require("vscode-workspace").setup({
         dir_create        = "A",
         file_delete       = "d",
         file_rename       = "r",
+        file_copy         = "y",
+        file_cut          = "x",
+        file_paste        = "p",
         -- Workspace switching
         switch_workspace  = "W",
         -- Favorite folder icon

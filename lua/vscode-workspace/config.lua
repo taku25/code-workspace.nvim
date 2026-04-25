@@ -53,6 +53,9 @@ local defaults = {
         dir_create        = "A",
         file_delete       = "d",
         file_rename       = "r",
+        file_copy         = "y",
+        file_cut          = "x",
+        file_paste        = "p",
         -- Workspace switching
         switch_workspace  = "W",  -- shows saved workspaces picker (:CW workspaces)
         -- Favorite folder icon
