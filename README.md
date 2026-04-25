@@ -113,6 +113,8 @@ require("vscode-workspace").setup({
         default_file    = "",
         workspace       = "󰙅",
         uefn            = "⚡",
+        favorites       = "★",   -- icon for the Favorites root node
+        recent          = "",   -- icon for the Recent root node
     },
 
     -- Keymaps (inside the explorer buffer)

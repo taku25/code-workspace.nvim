@@ -76,10 +76,10 @@ function M.prepare_node(node)
     elseif node.type == "directory" then
         icon_text, icon_hl = dir_icon(node.text, node:is_expanded(), icons)
     elseif extra_type == "fav_root" then
-        icon_text = "★ "
+        icon_text = (icons.favorites or "★") .. " "
         icon_hl   = "CWRootName"
     elseif extra_type == "recent_root" then
-        icon_text = " "
+        icon_text = (icons.recent or "") .. " "
         icon_hl   = "CWRootName"
     elseif extra_type == "fav_folder" then
         local custom_icon = node.extra and node.extra.icon
