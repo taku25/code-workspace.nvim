@@ -1,4 +1,4 @@
--- lua/CW/config.lua
+﻿-- lua/CW/config.lua
 
 local M = {}
 
@@ -22,6 +22,7 @@ local defaults = {
         uefn            = "⚡",
         favorites       = "★",
         recent          = "",
+        select_marker   = "",
     },
     highlights = {
         CWDirectoryIcon  = { link = "Directory" },

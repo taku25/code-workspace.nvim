@@ -121,9 +121,9 @@ function M.prepare_node(node)
         name_hl = "CWFileName"
     end
 
-    -- Selection marker (〇) shown just before the file name
+    -- Selection marker shown just before the file name
     if is_selected then
-        line:append("〇 ", "CWSelectedFile")
+        line:append((icons.select_marker or "〇") .. " ", "CWSelectedFile")
     end
     line:append(node.text, name_hl)
 
