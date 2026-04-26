@@ -28,6 +28,171 @@ local function get_conf()
     return require("vscode-workspace.config").get()
 end
 
+-- ── Help window ───────────────────────────────────────────────────────────────
+
+--- Normalize a keymap value (string or string[]) to a display string.
+local function fmt_key(v)
+    if type(v) == "table" then return table.concat(v, " / ") end
+    return tostring(v or "–")
+end
+
+local HELP_SECTIONS = {
+    { title = "Navigation", items = {
+        { key = "open",    desc = "Open file / expand directory" },
+        { key = "vsplit",  desc = "Open in vertical split" },
+        { key = "split",   desc = "Open in horizontal split" },
+        { key = "close",   desc = "Close explorer" },
+        { key = "refresh", desc = "Refresh tree" },
+    }},
+    { title = "Search & Picker", items = {
+        { key = "find_files", desc = "Find files  (:CW files)" },
+        { key = "live_grep",  desc = "Live grep   (:CW grep)" },
+    }},
+    { title = "Favorites", items = {
+        { key = "toggle_favorite",  desc = "Toggle current file in Favorites" },
+        { key = "fav_add_folder",   desc = "Add new Favorites folder" },
+        { key = "fav_rename_folder",desc = "Rename Favorites folder" },
+        { key = "fav_remove_folder",desc = "Remove Favorites folder" },
+        { key = "fav_move",         desc = "Move file to another folder" },
+        { key = "fav_set_icon",     desc = "Set icon for Favorites folder" },
+    }},
+    { title = "File system", items = {
+        { key = "file_create", desc = "Create new file" },
+        { key = "dir_create",  desc = "Create new directory" },
+        { key = "file_delete", desc = "Delete file / directory" },
+        { key = "file_rename", desc = "Rename file / directory" },
+        { key = "file_copy",   desc = "Copy file / directory" },
+        { key = "file_cut",    desc = "Cut file / directory" },
+        { key = "file_paste",  desc = "Paste file / directory" },
+    }},
+    { title = "Multi-select", items = {
+        { key = "select_toggle",   desc = "Toggle selection" },
+        { key = "clear_selection", desc = "Clear selection" },
+    }},
+    { title = "Preview", items = {
+        { key = "preview_toggle", desc = "Toggle file preview" },
+    }},
+    { title = "Workspace", items = {
+        { key = "switch_workspace", desc = "Switch workspace" },
+    }},
+}
+
+local help_win_id = nil
+
+local function open_help_window()
+    -- Toggle: close if already open
+    if help_win_id and vim.api.nvim_win_is_valid(help_win_id) then
+        vim.api.nvim_win_close(help_win_id, true)
+        help_win_id = nil
+        return
+    end
+
+    local km = get_conf().keymaps
+
+    -- Build lines
+    local lines = { "  Keymaps", "" }
+    local max_key_len = 0
+    for _, section in ipairs(HELP_SECTIONS) do
+        for _, item in ipairs(section.items) do
+            local k = fmt_key(km[item.key])
+            if #k > max_key_len then max_key_len = #k end
+        end
+    end
+
+    local width = 0
+    for _, section in ipairs(HELP_SECTIONS) do
+        table.insert(lines, "  ── " .. section.title)
+        for _, item in ipairs(section.items) do
+            local k   = fmt_key(km[item.key])
+            local pad = string.rep(" ", max_key_len - #k)
+            local line = "  " .. k .. pad .. "   " .. item.desc
+            table.insert(lines, line)
+            if #line > width then width = #line end
+        end
+        table.insert(lines, "")
+    end
+    -- Remove trailing blank line
+    if lines[#lines] == "" then table.remove(lines) end
+
+    -- Add close hint at the bottom
+    table.insert(lines, "")
+    local close_hint = "  Press ? / <Esc> / q  to close"
+    table.insert(lines, close_hint)
+    if #close_hint > width then width = #close_hint end
+
+    width = math.max(width, 40)
+    local height = #lines
+
+    -- Center the window in the editor
+    local ui      = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
+    local row     = math.floor((ui.height - height - 2) / 2)
+    local col     = math.floor((ui.width  - width  - 2) / 2)
+
+    local hbuf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_option_value("buftype",    "nofile", { buf = hbuf })
+    vim.api.nvim_set_option_value("buflisted",  false,    { buf = hbuf })
+    vim.api.nvim_set_option_value("modifiable", true,     { buf = hbuf })
+    vim.api.nvim_buf_set_lines(hbuf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("modifiable", false,    { buf = hbuf })
+
+    local hwin = vim.api.nvim_open_win(hbuf, true, {
+        relative = "editor",
+        row      = row,
+        col      = col,
+        width    = width,
+        height   = height,
+        style    = "minimal",
+        border   = "rounded",
+        title    = "  Help ",
+        title_pos = "center",
+        zindex   = 300,
+    })
+    help_win_id = hwin
+
+    -- Highlight section titles
+    local ns = vim.api.nvim_create_namespace("CWHelp")
+    for i, line in ipairs(lines) do
+        if line:match("^  ──") then
+            vim.api.nvim_buf_add_highlight(hbuf, ns, "CWRootName", i - 1, 0, -1)
+        elseif i == 1 then
+            vim.api.nvim_buf_add_highlight(hbuf, ns, "Title", i - 1, 0, -1)
+        elseif line == close_hint then
+            vim.api.nvim_buf_add_highlight(hbuf, ns, "Comment", i - 1, 0, -1)
+        end
+    end
+
+    local function close_help()
+        if vim.api.nvim_win_is_valid(hwin) then
+            vim.api.nvim_win_close(hwin, true)
+        end
+        help_win_id = nil
+        -- Return focus to explorer if it's open
+        if is_open() then
+            vim.api.nvim_set_current_win(state.win)
+        end
+    end
+
+    for _, k in ipairs({ "q", "<Esc>", "?" }) do
+        vim.keymap.set("n", k, close_help, { buffer = hbuf, nowait = true, silent = true })
+    end
+
+    -- Close on any window leave
+    local aug = vim.api.nvim_create_augroup("CWHelpWin_" .. hbuf, { clear = true })
+    vim.api.nvim_create_autocmd("WinLeave", {
+        buffer   = hbuf,
+        group    = aug,
+        once     = true,
+        callback = function()
+            vim.schedule(function()
+                if vim.api.nvim_win_is_valid(hwin) then
+                    vim.api.nvim_win_close(hwin, true)
+                end
+                help_win_id = nil
+            end)
+        end,
+    })
+end
+
 local function is_open()
     return state.win ~= nil and vim.api.nvim_win_is_valid(state.win)
 end
@@ -259,6 +424,10 @@ local function setup_keymaps(buf)
     map(km.switch_workspace, function()
         M.workspaces()
     end)
+
+    if km.help then
+        map(km.help, function() open_help_window() end)
+    end
 
     map("<2-LeftMouse>", function()
         local mouse = vim.fn.getmousepos()

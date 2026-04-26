@@ -67,6 +67,8 @@ local defaults = {
         switch_workspace  = "W",  -- shows saved workspaces picker (:CW workspaces)
         -- Favorite folder icon
         fav_set_icon      = "<C-i>",
+        -- Help
+        help              = "?",
     },
     -- ── Preview configuration ─────────────────────────────────────────────────
     preview = {

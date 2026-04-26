@@ -77,6 +77,7 @@ Default keymaps inside the explorer buffer:
 | `R` | Refresh tree |
 | `W` | Switch workspace (recently used list) |
 | `q` | Close explorer |
+| `?` | Show keymaps help window |
 
 ### Favorites folder keymaps
 
@@ -154,6 +155,8 @@ require("vscode-workspace").setup({
         switch_workspace  = "W",
         -- Favorite folder icon
         fav_set_icon      = "<C-i>",
+        -- Help window
+        help              = "?",
     },
 
     -- Max number of recently opened files shown in the Recent tree section.
