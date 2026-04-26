@@ -34,7 +34,8 @@ local function get_or_create_buf()
     return buf
 end
 
---- explorer ウィンドウの右側にフロートを配置するオプションを計算する。
+--- explorer ウィンドウの隣にフロートを配置するオプションを計算する。
+--- スペースが広い側（左 or 右）に自動的に配置する。
 local function calc_float_opts(anchor_win)
     local ok, pos = pcall(vim.api.nvim_win_get_position, anchor_win)
     if not ok then return nil end
@@ -51,18 +52,35 @@ local function calc_float_opts(anchor_win)
     local min_width  = prev_conf.min_width  or 20
     local min_height = prev_conf.min_height or 5
 
-    local area_col_start = anchor_col + anchor_w + 2
-    local available_w    = editor_w - area_col_start - 1
+    -- 左右それぞれの利用可能スペースを計算して広い側に配置する
+    local space_right = editor_w - (anchor_col + anchor_w) - 3
+    local space_left  = anchor_col - 2
 
-    local float_w   = math.floor(available_w * width_pct)
-    local h_offset  = math.floor((available_w - float_w) / 2)
-    local float_col = area_col_start + h_offset
+    local available_w, area_col_start
+    if space_right >= space_left then
+        area_col_start = anchor_col + anchor_w + 2
+        available_w    = space_right
+    else
+        available_w    = space_left
+        area_col_start = nil  -- 左側配置の場合は後で計算
+    end
+
+    local float_w = math.floor(available_w * width_pct)
+    if float_w < min_width then return nil end
+
+    local float_col
+    if area_col_start then
+        -- 右側配置
+        local h_offset = math.floor((available_w - float_w) / 2)
+        float_col = area_col_start + h_offset
+    else
+        -- 左側配置
+        local h_offset = math.floor((available_w - float_w) / 2)
+        float_col = h_offset
+    end
+
     local float_h   = math.floor(editor_h * height_pct)
     local float_row = math.floor((editor_h - float_h) / 2)
-
-    if float_w < min_width or area_col_start >= editor_w - 5 then
-        return nil
-    end
 
     return {
         relative  = "editor",
